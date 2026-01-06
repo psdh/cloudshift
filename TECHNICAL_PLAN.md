@@ -705,15 +705,15 @@
 
 **Description:** Create UI for managing notification preferences.
 
-**Status:** `TODO`
+**Status:** `DONE`
 
 **Acceptance Criteria:**
-- [ ] Settings page section for notifications
-- [ ] Toggle for email notifications
-- [ ] Toggle for SMS notifications
-- [ ] Phone number input with validation
-- [ ] Test notification button
-- [ ] Saves preferences to user profile
+- [x] Settings page section for notifications
+- [x] Toggle for email notifications
+- [x] Toggle for SMS notifications
+- [x] Phone number input with validation
+- [x] Test notification button
+- [x] Saves preferences to user profile
 
 ---
 
