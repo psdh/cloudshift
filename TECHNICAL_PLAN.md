@@ -543,15 +543,15 @@
 
 **Description:** Implement real-time progress streaming to frontend.
 
-**Status:** `TODO`
+**Status:** `DONE`
 
 **Acceptance Criteria:**
-- [ ] WebSocket or SSE endpoint for progress updates
-- [ ] Clients subscribe to specific job_id
-- [ ] Pushes progress updates as they occur
-- [ ] Sends completion/failure event
-- [ ] Handles client disconnection gracefully
-- [ ] Authenticates WebSocket connections
+- [x] WebSocket or SSE endpoint for progress updates
+- [x] Clients subscribe to specific job_id
+- [x] Pushes progress updates as they occur
+- [x] Sends completion/failure event
+- [x] Handles client disconnection gracefully
+- [x] Authenticates WebSocket connections
 
 ---
 

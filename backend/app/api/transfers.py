@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, delete
 from sqlalchemy.orm import selectinload
@@ -6,6 +7,8 @@ from typing import List, Optional, Dict, Any
 from datetime import datetime, date
 from collections import defaultdict
 import logging
+import asyncio
+import json
 
 from app.core.database import get_db
 from app.core.security import get_current_user_id
@@ -995,4 +998,141 @@ async def get_transfer_progress(
         percent_complete=round(percent_complete, 2),
         started_at=progress["started_at"],
         last_update=progress["last_update"]
+    )
+
+
+@router.get("/{job_id}/progress/stream")
+async def stream_transfer_progress(
+    job_id: int,
+    user_id: int = Depends(get_current_user_id),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Stream real-time progress updates for a transfer job using Server-Sent Events (SSE).
+
+    Clients subscribe to this endpoint to receive continuous progress updates.
+    The stream automatically closes when the job completes or fails.
+
+    Args:
+        job_id: Transfer job ID
+        user_id: Current user ID from JWT token
+        db: Database session
+
+    Returns:
+        StreamingResponse: SSE stream of progress updates
+
+    Raises:
+        HTTPException 404: If job not found
+        HTTPException 403: If user doesn't own the job
+    """
+    # Verify job ownership
+    result = await db.execute(
+        select(TransferJob).where(
+            TransferJob.id == job_id,
+            TransferJob.user_id == user_id
+        )
+    )
+    job = result.scalar_one_or_none()
+
+    if not job:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Transfer job not found"
+        )
+
+    async def event_generator():
+        """
+        Generate SSE events with progress updates.
+
+        Sends progress updates every 2 seconds and automatically closes
+        the stream when the job reaches a terminal state.
+        """
+        last_update = None
+
+        try:
+            while True:
+                # Get current progress from Redis
+                progress = await progress_tracker.get_progress(job_id)
+
+                if progress:
+                    # Calculate percent complete
+                    if progress["total_size"] > 0:
+                        percent_complete = (progress["bytes_transferred"] / progress["total_size"]) * 100
+                    else:
+                        percent_complete = 0.0
+
+                    # Only send if data has changed or it's the first update
+                    current_update = progress.get("last_update")
+                    if current_update != last_update or last_update is None:
+                        last_update = current_update
+
+                        # Format progress data
+                        progress_data = {
+                            "job_id": progress["job_id"],
+                            "total_files": progress["total_files"],
+                            "total_size": progress["total_size"],
+                            "files_completed": progress["files_completed"],
+                            "files_failed": progress["files_failed"],
+                            "bytes_transferred": progress["bytes_transferred"],
+                            "current_file": progress.get("current_file"),
+                            "current_file_bytes": progress.get("current_file_bytes", 0),
+                            "current_file_total": progress.get("current_file_total", 0),
+                            "percent_complete": round(percent_complete, 2),
+                            "started_at": progress["started_at"],
+                            "last_update": progress["last_update"]
+                        }
+
+                        # Send SSE event
+                        yield f"data: {json.dumps(progress_data)}\n\n"
+
+                # Check if job has reached a terminal state
+                result = await db.execute(
+                    select(TransferJob.status).where(TransferJob.id == job_id)
+                )
+                current_status = result.scalar_one_or_none()
+
+                if current_status:
+                    terminal_statuses = [
+                        JobStatus.COMPLETED,
+                        JobStatus.FAILED,
+                        JobStatus.CANCELLED
+                    ]
+
+                    if current_status in terminal_statuses:
+                        # Send completion event
+                        completion_data = {
+                            "event": "complete",
+                            "job_id": job_id,
+                            "status": current_status.value,
+                            "message": f"Transfer job {current_status.value}"
+                        }
+                        yield f"data: {json.dumps(completion_data)}\n\n"
+                        logger.info(f"Job {job_id} reached terminal status {current_status.value}, closing SSE stream")
+                        break
+
+                # Wait before next update (2 seconds for responsive updates)
+                await asyncio.sleep(2)
+
+        except asyncio.CancelledError:
+            # Client disconnected
+            logger.info(f"SSE stream cancelled for job {job_id} (client disconnected)")
+            raise
+        except Exception as e:
+            # Log error and send error event
+            logger.error(f"Error in SSE stream for job {job_id}: {str(e)}")
+            error_data = {
+                "event": "error",
+                "job_id": job_id,
+                "message": "An error occurred while streaming progress"
+            }
+            yield f"data: {json.dumps(error_data)}\n\n"
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no"  # Disable buffering in nginx
+        }
     )
