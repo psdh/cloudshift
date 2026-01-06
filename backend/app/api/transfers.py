@@ -1579,3 +1579,230 @@ async def schedule_transfer(
         status=job.status.value,
         message=f"Transfer scheduled for {scheduled_utc.isoformat()}"
     )
+
+
+class CloudFileItem(BaseModel):
+    """Schema for cloud file/folder item."""
+
+    id: str
+    name: str
+    type: str  # 'file' or 'folder'
+    size: int
+    modified_at: Optional[str]
+    path: str
+
+
+class CloudFileListResponse(BaseModel):
+    """Response schema for listing cloud files."""
+
+    items: List[CloudFileItem]
+    folder_id: str
+    provider: str
+
+
+class CreateFolderRequest(BaseModel):
+    """Request schema for creating a folder."""
+
+    folder_name: str
+    parent_folder_id: str = "root"
+
+
+class CreateFolderResponse(BaseModel):
+    """Response schema for folder creation."""
+
+    id: str
+    name: str
+    type: str
+    parent_id: str
+    message: str
+
+
+@router.get("/browse/onedrive/{folder_id}")
+async def browse_onedrive_files(
+    folder_id: str = "root",
+    user_id: int = Depends(get_current_user_id),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Browse OneDrive files and folders.
+
+    Args:
+        folder_id: Folder ID to browse (default: "root")
+        user_id: Current user ID from JWT token
+        db: Database session
+
+    Returns:
+        CloudFileListResponse: List of files and folders
+
+    Raises:
+        HTTPException 404: If OneDrive account not connected
+        HTTPException 500: If API call fails
+    """
+    # Get OneDrive connected account
+    result = await db.execute(
+        select(ConnectedAccount).where(
+            ConnectedAccount.user_id == user_id,
+            ConnectedAccount.provider == "onedrive"
+        )
+    )
+    account = result.scalar_one_or_none()
+
+    if not account:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="OneDrive account not connected"
+        )
+
+    try:
+        # List folder contents
+        files = await OneDriveService.list_folder(account, folder_id)
+
+        # Convert to response format
+        items = [
+            CloudFileItem(
+                id=f.id,
+                name=f.name,
+                type=f.type,
+                size=f.size,
+                modified_at=f.modified_at.isoformat() if f.modified_at else None,
+                path=f.path
+            )
+            for f in files
+        ]
+
+        return CloudFileListResponse(
+            items=items,
+            folder_id=folder_id,
+            provider="onedrive"
+        )
+    except Exception as e:
+        logger.error(f"Error browsing OneDrive folder {folder_id}: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to browse OneDrive files: {str(e)}"
+        )
+
+
+@router.get("/browse/google/{folder_id}")
+async def browse_google_drive_files(
+    folder_id: str = "root",
+    user_id: int = Depends(get_current_user_id),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Browse Google Drive files and folders.
+
+    Args:
+        folder_id: Folder ID to browse (default: "root")
+        user_id: Current user ID from JWT token
+        db: Database session
+
+    Returns:
+        CloudFileListResponse: List of files and folders
+
+    Raises:
+        HTTPException 404: If Google Drive account not connected
+        HTTPException 500: If API call fails
+    """
+    # Get Google Drive connected account
+    result = await db.execute(
+        select(ConnectedAccount).where(
+            ConnectedAccount.user_id == user_id,
+            ConnectedAccount.provider == "google"
+        )
+    )
+    account = result.scalar_one_or_none()
+
+    if not account:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Google Drive account not connected"
+        )
+
+    try:
+        # List folder contents
+        files = await GoogleDriveService.list_folder(account, folder_id)
+
+        # Convert to response format
+        items = [
+            CloudFileItem(
+                id=f.id,
+                name=f.name,
+                type=f.type,
+                size=f.size,
+                modified_at=f.modified_at.isoformat() if f.modified_at else None,
+                path=f.path
+            )
+            for f in files
+        ]
+
+        return CloudFileListResponse(
+            items=items,
+            folder_id=folder_id,
+            provider="google"
+        )
+    except Exception as e:
+        logger.error(f"Error browsing Google Drive folder {folder_id}: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to browse Google Drive files: {str(e)}"
+        )
+
+
+@router.post("/browse/google/create-folder", response_model=CreateFolderResponse)
+async def create_google_drive_folder(
+    create_request: CreateFolderRequest,
+    user_id: int = Depends(get_current_user_id),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Create a new folder in Google Drive.
+
+    Args:
+        create_request: Folder creation details
+        user_id: Current user ID from JWT token
+        db: Database session
+
+    Returns:
+        CreateFolderResponse: Created folder details
+
+    Raises:
+        HTTPException 404: If Google Drive account not connected
+        HTTPException 500: If folder creation fails
+    """
+    # Get Google Drive connected account
+    result = await db.execute(
+        select(ConnectedAccount).where(
+            ConnectedAccount.user_id == user_id,
+            ConnectedAccount.provider == "google"
+        )
+    )
+    account = result.scalar_one_or_none()
+
+    if not account:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Google Drive account not connected"
+        )
+
+    try:
+        # Create folder
+        folder = await GoogleDriveService.create_folder(
+            account,
+            create_request.folder_name,
+            create_request.parent_folder_id
+        )
+
+        return CreateFolderResponse(
+            id=folder.id,
+            name=folder.name,
+            type=folder.type,
+            parent_id=create_request.parent_folder_id,
+            message=f"Folder '{folder.name}' created successfully"
+        )
+    except Exception as e:
+        logger.error(f"Error creating Google Drive folder: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to create folder: {str(e)}"
+        )

@@ -831,15 +831,15 @@
 
 **Description:** Create UI for selecting destination folder in Google Drive.
 
-**Status:** `TODO`
+**Status:** `DONE`
 
 **Acceptance Criteria:**
-- [ ] File browser showing Google Drive folders
-- [ ] Navigate into folders
-- [ ] Create new folder option
-- [ ] Select destination folder
-- [ ] Shows current path
-- [ ] Validates both accounts connected
+- [x] File browser showing Google Drive folders
+- [x] Navigate into folders
+- [x] Create new folder option
+- [x] Select destination folder
+- [x] Shows current path
+- [x] Validates both accounts connected
 
 ---
 
