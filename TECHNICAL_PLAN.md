@@ -994,14 +994,14 @@
 
 **Description:** Write unit tests for authentication services.
 
-**Status:** `TODO`
+**Status:** `DONE`
 
 **Acceptance Criteria:**
-- [ ] Tests for registration (valid, duplicate email, weak password)
-- [ ] Tests for login (valid, wrong password, unknown email)
-- [ ] Tests for JWT generation and validation
-- [ ] Tests for token refresh
-- [ ] 90%+ coverage for auth module
+- [x] Tests for registration (valid, duplicate email, weak password)
+- [x] Tests for login (valid, wrong password, unknown email)
+- [x] Tests for JWT generation and validation
+- [x] Tests for token refresh
+- [x] 90%+ coverage for auth module
 
 ---
 
