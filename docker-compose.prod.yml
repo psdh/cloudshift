@@ -1,0 +1,133 @@
+version: '3.8'
+
+# Production overrides for docker-compose.yml
+# Usage: docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+
+services:
+  # PostgreSQL - Production Configuration
+  postgres:
+    restart: unless-stopped
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}  # Set via environment variable
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backend/backups:/backups  # Mount backup directory
+    command:
+      - "postgres"
+      - "-c"
+      - "max_connections=200"
+      - "-c"
+      - "shared_buffers=256MB"
+      - "-c"
+      - "effective_cache_size=1GB"
+      - "-c"
+      - "maintenance_work_mem=64MB"
+      - "-c"
+      - "checkpoint_completion_target=0.9"
+      - "-c"
+      - "wal_buffers=16MB"
+      - "-c"
+      - "default_statistics_target=100"
+      - "-c"
+      - "random_page_cost=1.1"
+      - "-c"
+      - "effective_io_concurrency=200"
+      - "-c"
+      - "work_mem=2621kB"
+      - "-c"
+      - "min_wal_size=1GB"
+      - "-c"
+      - "max_wal_size=4GB"
+
+  # Redis - Production Configuration
+  redis:
+    restart: unless-stopped
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD}
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+
+  # Backend API - Production Configuration
+  backend:
+    restart: unless-stopped
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: runner
+    env_file:
+      - ./backend/.env.production
+    environment:
+      DATABASE_URL: postgresql+asyncpg://cloudshift:${POSTGRES_PASSWORD}@postgres:5432/cloudshift
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
+      DEBUG: "false"
+      HOST: 0.0.0.0
+      PORT: 8000
+    volumes: []  # Remove volume mounts for production (no hot reload)
+    command: >
+      sh -c "
+        alembic upgrade head &&
+        uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4
+      "
+
+  # Celery Worker - Production Configuration
+  celery-worker:
+    restart: unless-stopped
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: runner
+    env_file:
+      - ./backend/.env.production
+    environment:
+      DATABASE_URL: postgresql+asyncpg://cloudshift:${POSTGRES_PASSWORD}@postgres:5432/cloudshift
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
+    volumes: []  # Remove volume mounts
+    command: celery -A app.core.celery_app worker --loglevel=warning --concurrency=4 --max-tasks-per-child=1000
+
+  # Celery Beat - Production Configuration
+  celery-beat:
+    restart: unless-stopped
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: runner
+    env_file:
+      - ./backend/.env.production
+    environment:
+      DATABASE_URL: postgresql+asyncpg://cloudshift:${POSTGRES_PASSWORD}@postgres:5432/cloudshift
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
+    volumes: []  # Remove volume mounts
+    command: celery -A app.core.celery_app beat --loglevel=warning
+
+  # Frontend - Production Configuration
+  frontend:
+    restart: unless-stopped
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      target: runner
+    environment:
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}  # Set to production API URL
+      NODE_ENV: production
+    volumes: []  # Remove volume mounts for production
+    command: node server.js
+
+  # Nginx Reverse Proxy (optional - recommended for production)
+  nginx:
+    image: nginx:alpine
+    container_name: cloudshift-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - nginx_logs:/var/log/nginx
+    depends_on:
+      - backend
+      - frontend
+    networks:
+      - cloudshift-network
+
+volumes:
+  nginx_logs:
