@@ -879,18 +879,18 @@
 
 **Description:** Create real-time transfer progress view.
 
-**Status:** `TODO`
+**Status:** `DONE`
 
 **Acceptance Criteria:**
-- [ ] Overall progress bar (files completed / total)
-- [ ] Bytes transferred / total bytes
-- [ ] Current file being transferred with individual progress
-- [ ] Transfer speed (MB/s)
-- [ ] Estimated time remaining
-- [ ] List of completed files (collapsible)
-- [ ] List of failed files with errors
-- [ ] Cancel button
-- [ ] Auto-updates via WebSocket/SSE
+- [x] Overall progress bar (files completed / total)
+- [x] Bytes transferred / total bytes
+- [x] Current file being transferred with individual progress
+- [x] Transfer speed (MB/s)
+- [x] Estimated time remaining
+- [x] List of completed files (collapsible)
+- [x] List of failed files with errors
+- [x] Cancel button
+- [x] Auto-updates via WebSocket/SSE
 
 ---
 
