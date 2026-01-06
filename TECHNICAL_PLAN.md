@@ -274,15 +274,15 @@
 
 **Description:** Create UI for users to connect/disconnect cloud storage accounts.
 
-**Status:** `TODO`
+**Status:** `DONE`
 
 **Acceptance Criteria:**
-- [ ] Account settings page shows connected accounts
-- [ ] "Connect OneDrive" button initiates OAuth flow
-- [ ] "Connect Google Drive" button initiates OAuth flow
-- [ ] Shows account email when connected
-- [ ] "Disconnect" button with confirmation
-- [ ] Handles OAuth callback redirect and shows success/error
+- [x] Account settings page shows connected accounts
+- [x] "Connect OneDrive" button initiates OAuth flow
+- [x] "Connect Google Drive" button initiates OAuth flow
+- [x] Shows account email when connected
+- [x] "Disconnect" button with confirmation
+- [x] Handles OAuth callback redirect and shows success/error
 
 ---
 
