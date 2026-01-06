@@ -70,14 +70,14 @@
 
 **Description:** Configure Redis as message broker and Celery for background task processing.
 
-**Status:** `TODO`
+**Status:** `DONE`
 
 **Acceptance Criteria:**
-- [ ] Redis running (local or Docker)
-- [ ] Celery worker starts and connects to Redis
-- [ ] Test task executes successfully via Celery
-- [ ] Celery beat configured for scheduled tasks
-- [ ] Basic task retry configuration in place
+- [x] Redis running (local or Docker)
+- [x] Celery worker starts and connects to Redis
+- [x] Test task executes successfully via Celery
+- [x] Celery beat configured for scheduled tasks
+- [x] Basic task retry configuration in place
 
 ---
 

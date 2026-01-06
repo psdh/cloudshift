@@ -66,6 +66,34 @@ python -m uvicorn app.main:app --reload
 
 The API will be available at `http://localhost:8000`
 
+### 6. Start Celery Worker (Optional)
+
+For background task processing:
+
+```bash
+./run_worker.sh
+```
+
+Or manually:
+
+```bash
+celery -A app.core.celery_app worker --loglevel=info
+```
+
+### 7. Start Celery Beat (Optional)
+
+For scheduled tasks:
+
+```bash
+./run_beat.sh
+```
+
+Or manually:
+
+```bash
+celery -A app.core.celery_app beat --loglevel=info
+```
+
 ## API Documentation
 
 Once the server is running, visit:
