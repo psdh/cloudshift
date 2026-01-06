@@ -592,15 +592,15 @@
 
 **Description:** Create frontend UI for resolving file conflicts.
 
-**Status:** `TODO`
+**Status:** `DONE`
 
 **Acceptance Criteria:**
-- [ ] Modal/page shows conflict details (filename, source size, dest size, dates)
-- [ ] Buttons: Skip, Rename, Overwrite
-- [ ] Checkbox: "Apply to all remaining conflicts"
-- [ ] Shows preview of renamed filename
-- [ ] Updates in real-time as conflicts are resolved
-- [ ] Allows resuming transfer after resolution
+- [x] Modal/page shows conflict details (filename, source size, dest size, dates)
+- [x] Buttons: Skip, Rename, Overwrite
+- [x] Checkbox: "Apply to all remaining conflicts"
+- [x] Shows preview of renamed filename
+- [x] Updates in real-time as conflicts are resolved
+- [x] Allows resuming transfer after resolution
 
 ---
 
