@@ -11,6 +11,7 @@ from datetime import datetime
 
 from app.models.connected_account import ConnectedAccount
 from app.services.oauth import OAuthService
+from app.services.rate_limiter import rate_limiter
 
 logger = logging.getLogger(__name__)
 
@@ -100,6 +101,12 @@ class GoogleDriveService:
 
         async with aiohttp.ClientSession() as session:
             while True:
+                # Wait if rate limited
+                await rate_limiter.wait_if_rate_limited("google")
+
+                # Record request
+                await rate_limiter.record_request("google")
+
                 params = {
                     "q": query,
                     "pageSize": page_size,
@@ -109,6 +116,17 @@ class GoogleDriveService:
                     params["pageToken"] = page_token
 
                 async with session.get(endpoint, headers=headers, params=params) as response:
+                    # Handle rate limiting
+                    if response.status == 429:
+                        import httpx
+                        httpx_response = httpx.Response(
+                            status_code=response.status,
+                            headers=dict(response.headers),
+                            request=httpx.Request("GET", endpoint)
+                        )
+                        await rate_limiter.handle_rate_limit_response("google", httpx_response)
+                        continue  # Retry after backoff
+
                     if response.status != 200:
                         error_text = await response.text()
                         logger.error(f"Google Drive API error: {response.status} - {error_text}")
@@ -198,8 +216,22 @@ class GoogleDriveService:
 
         headers["Content-Type"] = f"multipart/related; boundary={boundary}"
 
+        # Wait if rate limited
+        await rate_limiter.wait_if_rate_limited("google")
+        await rate_limiter.record_request("google")
+
         async with aiohttp.ClientSession() as session:
             async with session.post(endpoint, headers=headers, data=body) as response:
+                if response.status == 429:
+                    import httpx
+                    httpx_response = httpx.Response(
+                        status_code=response.status,
+                        headers=dict(response.headers),
+                        request=httpx.Request("POST", endpoint)
+                    )
+                    await rate_limiter.handle_rate_limit_response("google", httpx_response)
+                    raise Exception("Rate limit hit - retry required")
+
                 if response.status not in (200, 201):
                     error_text = await response.text()
                     logger.error(f"Google Drive upload error: {response.status} - {error_text}")

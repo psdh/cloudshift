@@ -10,6 +10,7 @@ from datetime import datetime
 
 from app.models.connected_account import ConnectedAccount
 from app.services.oauth import OAuthService
+from app.services.rate_limiter import rate_limiter
 
 logger = logging.getLogger(__name__)
 
@@ -103,7 +104,25 @@ class OneDriveService:
 
         async with aiohttp.ClientSession() as session:
             while endpoint:
+                # Wait if rate limited
+                await rate_limiter.wait_if_rate_limited("onedrive")
+
+                # Record request
+                await rate_limiter.record_request("onedrive")
+
                 async with session.get(endpoint, headers=headers, params=params if params else None) as response:
+                    # Handle rate limiting
+                    if response.status == 429:
+                        # Convert aiohttp response to httpx-like response for rate_limiter
+                        import httpx
+                        httpx_response = httpx.Response(
+                            status_code=response.status,
+                            headers=dict(response.headers),
+                            request=httpx.Request("GET", endpoint)
+                        )
+                        await rate_limiter.handle_rate_limit_response("onedrive", httpx_response)
+                        continue  # Retry after backoff
+
                     if response.status != 200:
                         error_text = await response.text()
                         logger.error(f"OneDrive API error: {response.status} - {error_text}")
@@ -147,7 +166,20 @@ class OneDriveService:
 
         async with aiohttp.ClientSession() as session:
             # First, get the file metadata to get download URL
+            await rate_limiter.wait_if_rate_limited("onedrive")
+            await rate_limiter.record_request("onedrive")
+
             async with session.get(endpoint, headers=headers) as response:
+                if response.status == 429:
+                    import httpx
+                    httpx_response = httpx.Response(
+                        status_code=response.status,
+                        headers=dict(response.headers),
+                        request=httpx.Request("GET", endpoint)
+                    )
+                    await rate_limiter.handle_rate_limit_response("onedrive", httpx_response)
+                    raise Exception("Rate limit hit - retry required")
+
                 if response.status != 200:
                     error_text = await response.text()
                     logger.error(f"OneDrive API error: {response.status} - {error_text}")
@@ -159,7 +191,7 @@ class OneDriveService:
                 if not download_url:
                     raise Exception("No download URL available for file")
 
-            # Now download the file
+            # Now download the file (download URL doesn't count toward API rate limit)
             async with session.get(download_url) as response:
                 if response.status != 200:
                     raise Exception(f"Failed to download file: {response.status}")

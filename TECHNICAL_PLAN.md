@@ -947,14 +947,14 @@
 
 **Description:** Implement rate limit detection and backoff for cloud APIs.
 
-**Status:** `TODO`
+**Status:** `DONE`
 
 **Acceptance Criteria:**
-- [ ] Detects 429 responses from OneDrive/Google
-- [ ] Reads Retry-After header if present
-- [ ] Implements global rate limiting per provider
-- [ ] Queues requests when near limit
-- [ ] Logs rate limit events
+- [x] Detects 429 responses from OneDrive/Google
+- [x] Reads Retry-After header if present
+- [x] Implements global rate limiting per provider
+- [x] Queues requests when near limit
+- [x] Logs rate limit events
 
 ---
 

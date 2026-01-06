@@ -9,6 +9,7 @@ set -euo pipefail
 PROMPT_PARTS=()
 MAX_ITERATIONS=0
 COMPLETION_PROMISE="null"
+SKIP_PERMISSIONS=false
 
 # Parse options and positional arguments
 while [[ $# -gt 0 ]]; do
@@ -26,6 +27,7 @@ ARGUMENTS:
 OPTIONS:
   --max-iterations <n>           Maximum iterations before auto-stop (default: unlimited)
   --completion-promise '<text>'  Promise phrase (USE QUOTES for multi-word)
+  --skip-permissions             Skip permission checks (passes --dangerously-skip-permissions to claude)
   -h, --help                     Show this help message
 
 DESCRIPTION:
@@ -44,6 +46,7 @@ EXAMPLES:
   /ralph-loop --max-iterations 10 Fix the auth bug
   /ralph-loop Refactor cache layer  (runs forever)
   /ralph-loop --completion-promise 'TASK COMPLETE' Create a REST API
+  /ralph-loop --skip-permissions Deploy to production  (skips permission checks)
 
 STOPPING:
   Only by reaching --max-iterations or detecting --completion-promise
@@ -100,6 +103,10 @@ HELP_EOF
       fi
       COMPLETION_PROMISE="$2"
       shift 2
+      ;;
+    --skip-permissions)
+      SKIP_PERMISSIONS=true
+      shift
       ;;
     *)
       # Non-option argument - collect all as prompt parts
@@ -174,7 +181,11 @@ if [[ -n "$PROMPT" ]]; then
   echo ""
   echo "Calling Claude with prompt..."
   echo ""
-  claude "$PROMPT"
+  if [[ "$SKIP_PERMISSIONS" == "true" ]]; then
+    claude --dangerously-skip-permissions "$PROMPT"
+  else
+    claude "$PROMPT"
+  fi
 fi
 
 # Display completion promise requirements if set
