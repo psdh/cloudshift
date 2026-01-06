@@ -932,14 +932,14 @@
 
 **Description:** Implement retry logic with exponential backoff for API calls.
 
-**Status:** `TODO`
+**Status:** `DONE`
 
 **Acceptance Criteria:**
-- [ ] Wrapper for cloud API calls with retry logic
-- [ ] 3 retry attempts with exponential backoff (1s, 2s, 4s)
-- [ ] Identifies transient errors (rate limits, timeouts, 5xx)
-- [ ] Does not retry permanent errors (404, 403)
-- [ ] Logs retry attempts
+- [x] Wrapper for cloud API calls with retry logic
+- [x] 3 retry attempts with exponential backoff (1s, 2s, 4s)
+- [x] Identifies transient errors (rate limits, timeouts, 5xx)
+- [x] Does not retry permanent errors (404, 403)
+- [x] Logs retry attempts
 
 ---
 
