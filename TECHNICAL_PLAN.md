@@ -610,14 +610,14 @@
 
 **Description:** Implement ability to schedule transfers for future execution.
 
-**Status:** `TODO`
+**Status:** `DONE`
 
 **Acceptance Criteria:**
-- [ ] TransferJob.scheduled_for field stores scheduled datetime
-- [ ] `POST /api/transfers/:id/schedule` sets schedule time
-- [ ] Validates scheduled time is in the future
-- [ ] Job status set to 'scheduled'
-- [ ] Celery beat checks for due scheduled jobs every minute
+- [x] TransferJob.scheduled_for field stores scheduled datetime
+- [x] `POST /api/transfers/:id/schedule` sets schedule time
+- [x] Validates scheduled time is in the future
+- [x] Job status set to 'scheduled'
+- [x] Celery beat checks for due scheduled jobs every minute
 
 ---
 
@@ -625,14 +625,14 @@
 
 **Description:** Implement Celery beat task to start scheduled transfers.
 
-**Status:** `TODO`
+**Status:** `DONE`
 
 **Acceptance Criteria:**
-- [ ] Periodic task runs every minute
-- [ ] Finds jobs where scheduled_for <= now and status = 'scheduled'
-- [ ] Starts transfer orchestrator for each due job
-- [ ] Handles timezone correctly (store in UTC)
-- [ ] Updates job status to 'running'
+- [x] Periodic task runs every minute
+- [x] Finds jobs where scheduled_for <= now and status = 'scheduled'
+- [x] Starts transfer orchestrator for each due job
+- [x] Handles timezone correctly (store in UTC)
+- [x] Updates job status to 'running'
 
 ---
 

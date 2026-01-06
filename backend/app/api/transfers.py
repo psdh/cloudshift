@@ -1471,3 +1471,111 @@ async def resolve_all_conflicts(
         "resolution": resolve_request.resolution,
         "job_resumed": job.status == JobStatus.RUNNING
     }
+
+
+class ScheduleTransferRequest(BaseModel):
+    """Request schema for scheduling a transfer."""
+
+    scheduled_for: datetime
+
+    @field_validator("scheduled_for")
+    @classmethod
+    def validate_scheduled_time(cls, v: datetime) -> datetime:
+        """Validate that scheduled time is in the future."""
+        # Ensure datetime is timezone-aware
+        if v.tzinfo is None:
+            raise ValueError("scheduled_for must include timezone information")
+
+        # Convert to UTC for comparison
+        now_utc = datetime.now(v.tzinfo).astimezone()
+        v_utc = v.astimezone()
+
+        if v_utc <= now_utc:
+            raise ValueError("scheduled_for must be in the future")
+
+        return v
+
+
+class ScheduleTransferResponse(BaseModel):
+    """Response schema for scheduling a transfer."""
+
+    job_id: int
+    scheduled_for: str
+    status: str
+    message: str
+
+
+@router.post("/{job_id}/schedule", response_model=ScheduleTransferResponse)
+async def schedule_transfer(
+    job_id: int,
+    schedule_request: ScheduleTransferRequest,
+    user_id: int = Depends(get_current_user_id),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Schedule a transfer job for future execution.
+
+    Args:
+        job_id: Transfer job ID
+        schedule_request: Schedule details with scheduled_for datetime
+        user_id: Current user ID from JWT token
+        db: Database session
+
+    Returns:
+        ScheduleTransferResponse: Scheduling confirmation
+
+    Raises:
+        HTTPException 404: If job not found
+        HTTPException 403: If user doesn't own the job
+        HTTPException 400: If job cannot be scheduled (wrong status or no items)
+    """
+    # Verify job ownership
+    result = await db.execute(
+        select(TransferJob)
+        .options(selectinload(TransferJob.items))
+        .where(
+            TransferJob.id == job_id,
+            TransferJob.user_id == user_id
+        )
+    )
+    job = result.scalar_one_or_none()
+
+    if not job:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Transfer job not found"
+        )
+
+    # Check if job can be scheduled
+    schedulable_statuses = [JobStatus.DRAFT, JobStatus.PENDING]
+    if job.status not in schedulable_statuses:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Cannot schedule job with status '{job.status.value}'. Only DRAFT or PENDING jobs can be scheduled."
+        )
+
+    # Verify job has items to transfer
+    if not job.items:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot schedule job with no items. Run analysis first."
+        )
+
+    # Convert scheduled time to UTC for storage
+    scheduled_utc = schedule_request.scheduled_for.astimezone()
+
+    # Update job with scheduled time and status
+    job.scheduled_for = scheduled_utc.replace(tzinfo=None)  # Store as naive UTC
+    job.status = JobStatus.SCHEDULED
+
+    await db.commit()
+    await db.refresh(job)
+
+    logger.info(f"Scheduled job {job_id} for execution at {scheduled_utc.isoformat()}")
+
+    return ScheduleTransferResponse(
+        job_id=job_id,
+        scheduled_for=scheduled_utc.isoformat(),
+        status=job.status.value,
+        message=f"Transfer scheduled for {scheduled_utc.isoformat()}"
+    )
