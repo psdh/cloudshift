@@ -752,14 +752,14 @@
 
 **Description:** Create endpoints for users to view their audit logs.
 
-**Status:** `TODO`
+**Status:** `DONE`
 
 **Acceptance Criteria:**
-- [ ] `GET /api/audit-logs` lists user's audit logs
-- [ ] Supports pagination (limit, offset)
-- [ ] Supports filtering by action type, date range
-- [ ] `GET /api/audit-logs/export` exports as CSV
-- [ ] 30-day retention enforced (older logs not returned)
+- [x] `GET /api/audit-logs` lists user's audit logs
+- [x] Supports pagination (limit, offset)
+- [x] Supports filtering by action type, date range
+- [x] `GET /api/audit-logs/export` exports as CSV
+- [x] 30-day retention enforced (older logs not returned)
 
 ---
 

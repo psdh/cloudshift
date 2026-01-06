@@ -7,6 +7,7 @@ from app.api.auth import router as auth_router
 from app.api.oauth import router as oauth_router
 from app.api.accounts import router as accounts_router
 from app.api.transfers import router as transfers_router
+from app.api.audit_logs import router as audit_logs_router
 
 # Initialize FastAPI application
 app = FastAPI(
@@ -30,6 +31,7 @@ app.include_router(auth_router)
 app.include_router(oauth_router)
 app.include_router(accounts_router)
 app.include_router(transfers_router)
+app.include_router(audit_logs_router)
 
 
 @app.on_event("startup")
