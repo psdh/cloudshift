@@ -399,15 +399,15 @@
 
 **Description:** Create API endpoints to create, read, update, and cancel transfer jobs.
 
-**Status:** `TODO`
+**Status:** `DONE`
 
 **Acceptance Criteria:**
-- [ ] `POST /api/transfers` creates new transfer job
-- [ ] `GET /api/transfers` lists user's transfer jobs with pagination
-- [ ] `GET /api/transfers/:id` returns job details with item summary
-- [ ] `POST /api/transfers/:id/cancel` cancels pending/running job
-- [ ] `DELETE /api/transfers/:id` deletes completed job and logs
-- [ ] Validates user owns the job
+- [x] `POST /api/transfers` creates new transfer job
+- [x] `GET /api/transfers` lists user's transfer jobs with pagination
+- [x] `GET /api/transfers/:id` returns job details with item summary
+- [x] `POST /api/transfers/:id/cancel` cancels pending/running job
+- [x] `DELETE /api/transfers/:id` deletes completed job and logs
+- [x] Validates user owns the job
 
 ---
 

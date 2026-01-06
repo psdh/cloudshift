@@ -6,6 +6,7 @@ from app.api.health import router as health_router
 from app.api.auth import router as auth_router
 from app.api.oauth import router as oauth_router
 from app.api.accounts import router as accounts_router
+from app.api.transfers import router as transfers_router
 
 # Initialize FastAPI application
 app = FastAPI(
@@ -28,6 +29,7 @@ app.include_router(health_router)
 app.include_router(auth_router)
 app.include_router(oauth_router)
 app.include_router(accounts_router)
+app.include_router(transfers_router)
 
 
 @app.on_event("startup")
