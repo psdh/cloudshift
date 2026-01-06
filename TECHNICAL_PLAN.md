@@ -898,15 +898,15 @@
 
 **Description:** Create page showing past transfer jobs.
 
-**Status:** `TODO`
+**Status:** `DONE`
 
 **Acceptance Criteria:**
-- [ ] Table: date, source, destination, files, size, status, duration
-- [ ] Click to view details
-- [ ] Filter by status (completed, failed, cancelled)
-- [ ] Date range filter
-- [ ] Pagination
-- [ ] Delete completed jobs option
+- [x] Table: date, source, destination, files, size, status, duration
+- [x] Click to view details
+- [x] Filter by status (completed, failed, cancelled)
+- [x] Date range filter
+- [x] Pagination
+- [x] Delete completed jobs option
 
 ---
 
