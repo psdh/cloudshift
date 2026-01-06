@@ -212,15 +212,15 @@
 
 **Description:** Create endpoints to initiate and complete OneDrive OAuth authorization.
 
-**Status:** `TODO`
+**Status:** `DONE`
 
 **Acceptance Criteria:**
-- [ ] `GET /api/oauth/onedrive/authorize` returns OAuth URL with state parameter
-- [ ] `GET /api/oauth/onedrive/callback` exchanges code for tokens
-- [ ] Tokens encrypted and stored in ConnectedAccount
-- [ ] Fetches and stores user's OneDrive email/account info
-- [ ] Handles OAuth errors gracefully
-- [ ] State parameter validated to prevent CSRF
+- [x] `GET /api/oauth/onedrive/authorize` returns OAuth URL with state parameter
+- [x] `GET /api/oauth/onedrive/callback` exchanges code for tokens
+- [x] Tokens encrypted and stored in ConnectedAccount
+- [x] Fetches and stores user's OneDrive email/account info
+- [x] Handles OAuth errors gracefully
+- [x] State parameter validated to prevent CSRF
 
 ---
 
@@ -228,15 +228,15 @@
 
 **Description:** Create endpoints to initiate and complete Google Drive OAuth authorization.
 
-**Status:** `TODO`
+**Status:** `DONE`
 
 **Acceptance Criteria:**
-- [ ] `GET /api/oauth/google/authorize` returns OAuth URL with state parameter
-- [ ] `GET /api/oauth/google/callback` exchanges code for tokens
-- [ ] Tokens encrypted and stored in ConnectedAccount
-- [ ] Fetches and stores user's Google account email
-- [ ] Requests appropriate Drive scopes (files read/write)
-- [ ] Handles OAuth errors gracefully
+- [x] `GET /api/oauth/google/authorize` returns OAuth URL with state parameter
+- [x] `GET /api/oauth/google/callback` exchanges code for tokens
+- [x] Tokens encrypted and stored in ConnectedAccount
+- [x] Fetches and stores user's Google account email
+- [x] Requests appropriate Drive scopes (files read/write)
+- [x] Handles OAuth errors gracefully
 
 ---
 
