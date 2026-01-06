@@ -85,15 +85,15 @@
 
 **Description:** Set up S3 bucket for intermediate file storage with encryption and lifecycle policies.
 
-**Status:** `TODO`
+**Status:** `DONE`
 
 **Acceptance Criteria:**
-- [ ] S3 bucket created with unique name
-- [ ] Server-side encryption enabled (AES-256)
-- [ ] IAM user/role with minimal required permissions
-- [ ] Boto3 client configured in backend
-- [ ] Test upload/download/delete operations work
-- [ ] CORS configured if needed for presigned URLs
+- [x] S3 bucket created with unique name
+- [x] Server-side encryption enabled (AES-256)
+- [x] IAM user/role with minimal required permissions
+- [x] Boto3 client configured in backend
+- [x] Test upload/download/delete operations work
+- [x] CORS configured if needed for presigned URLs
 
 ---
 
