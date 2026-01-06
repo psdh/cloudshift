@@ -22,6 +22,13 @@ from app.services.audit import AuditService
 from app.models.audit_log import AuditAction
 from sqlalchemy import select
 
+# Import send_job_notification for triggering notifications
+# Import at module level to avoid circular imports
+def trigger_notification(job_id: int):
+    """Trigger notification task without circular import."""
+    from app.services.notifications import send_job_notification
+    send_job_notification.delay(job_id)
+
 logger = logging.getLogger(__name__)
 
 
@@ -431,6 +438,10 @@ def transfer_job_orchestrator(self, job_id: int) -> dict:
                     job.status = JobStatus.COMPLETED
                     job.completed_at = datetime.utcnow()
                     await db.commit()
+
+                    # Trigger notification asynchronously
+                    trigger_notification(job_id)
+
                     return {
                         "status": "completed",
                         "job_id": job_id,
@@ -465,6 +476,9 @@ def transfer_job_orchestrator(self, job_id: int) -> dict:
                     job.status = JobStatus.FAILED
                     job.completed_at = datetime.utcnow()
                     await db.commit()
+
+                    # Trigger notification asynchronously
+                    trigger_notification(job_id)
 
                 raise TransferError(f"Job orchestration failed: {str(e)}")
 
