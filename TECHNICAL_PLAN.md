@@ -962,14 +962,14 @@
 
 **Description:** Implement handling for unrecoverable job failures.
 
-**Status:** `TODO`
+**Status:** `DONE`
 
 **Acceptance Criteria:**
-- [ ] Job marked as 'failed' after max retries exceeded
-- [ ] Partial progress preserved (completed files stay completed)
-- [ ] Cleanup of S3 intermediate files
-- [ ] User notified of failure with details
-- [ ] Job can be retried (resumes from failure point)
+- [x] Job marked as 'failed' after max retries exceeded
+- [x] Partial progress preserved (completed files stay completed)
+- [x] Cleanup of S3 intermediate files
+- [x] User notified of failure with details
+- [x] Job can be retried (resumes from failure point)
 
 ---
 

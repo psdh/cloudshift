@@ -11,6 +11,7 @@ from typing import Optional, AsyncIterator
 
 from app.core.celery_app import celery_app
 from app.core.database import get_db
+from app.core.retry import async_retry_on_transient_error
 from app.models.transfer import TransferItem, TransferJob, JobStatus, ConflictRecord, ConflictResolution
 from app.models.connected_account import ConnectedAccount
 from app.services.onedrive import OneDriveService
