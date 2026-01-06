@@ -528,14 +528,14 @@
 
 **Description:** Implement real-time progress tracking for transfer jobs.
 
-**Status:** `TODO`
+**Status:** `DONE`
 
 **Acceptance Criteria:**
-- [ ] Updates job progress in Redis for fast reads
-- [ ] Tracks: files_completed, files_failed, bytes_transferred, current_file
-- [ ] For large files: tracks bytes_uploaded for current file
-- [ ] Progress updates every 5 seconds max
-- [ ] `GET /api/transfers/:id/progress` returns current progress
+- [x] Updates job progress in Redis for fast reads
+- [x] Tracks: files_completed, files_failed, bytes_transferred, current_file
+- [x] For large files: tracks bytes_uploaded for current file
+- [x] Progress updates every 5 seconds max
+- [x] `GET /api/transfers/:id/progress` returns current progress
 
 ---
 

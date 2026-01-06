@@ -16,6 +16,7 @@ from app.services.google_drive import GoogleDriveService
 from app.services.conflict import ConflictDetectionService
 from app.services.s3 import S3Service
 from app.services.transfer_worker import transfer_single_file
+from app.services.progress_tracker import progress_tracker
 from pydantic import BaseModel, Field, field_validator
 
 
@@ -806,6 +807,23 @@ class ResumeResponse(BaseModel):
     task_ids: List[str]
 
 
+class ProgressResponse(BaseModel):
+    """Response schema for transfer progress."""
+
+    job_id: int
+    total_files: int
+    total_size: int
+    files_completed: int
+    files_failed: int
+    bytes_transferred: int
+    current_file: Optional[str]
+    current_file_bytes: int
+    current_file_total: int
+    percent_complete: float
+    started_at: str
+    last_update: str
+
+
 @router.post("/{job_id}/resume", response_model=ResumeResponse)
 async def resume_transfer(
     job_id: int,
@@ -910,4 +928,71 @@ async def resume_transfer(
         completed_items=len(completed_items),
         s3_files_cleaned=s3_files_cleaned,
         task_ids=task_ids
+    )
+
+
+@router.get("/{job_id}/progress", response_model=ProgressResponse)
+async def get_transfer_progress(
+    job_id: int,
+    user_id: int = Depends(get_current_user_id),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Get real-time progress for a transfer job.
+
+    Args:
+        job_id: Transfer job ID
+        user_id: Current user ID from JWT token
+        db: Database session
+
+    Returns:
+        ProgressResponse: Current progress data
+
+    Raises:
+        HTTPException 404: If job not found or no progress data
+        HTTPException 403: If user doesn't own the job
+    """
+    # Verify job ownership
+    result = await db.execute(
+        select(TransferJob).where(
+            TransferJob.id == job_id,
+            TransferJob.user_id == user_id
+        )
+    )
+    job = result.scalar_one_or_none()
+
+    if not job:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Transfer job not found"
+        )
+
+    # Get progress from Redis
+    progress = await progress_tracker.get_progress(job_id)
+
+    if not progress:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No progress data available. Job may not have started yet."
+        )
+
+    # Calculate percent complete
+    if progress["total_size"] > 0:
+        percent_complete = (progress["bytes_transferred"] / progress["total_size"]) * 100
+    else:
+        percent_complete = 0.0
+
+    return ProgressResponse(
+        job_id=progress["job_id"],
+        total_files=progress["total_files"],
+        total_size=progress["total_size"],
+        files_completed=progress["files_completed"],
+        files_failed=progress["files_failed"],
+        bytes_transferred=progress["bytes_transferred"],
+        current_file=progress.get("current_file"),
+        current_file_bytes=progress.get("current_file_bytes", 0),
+        current_file_total=progress.get("current_file_total", 0),
+        percent_complete=round(percent_complete, 2),
+        started_at=progress["started_at"],
+        last_update=progress["last_update"]
     )

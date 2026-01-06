@@ -16,6 +16,7 @@ from app.models.connected_account import ConnectedAccount
 from app.services.onedrive import OneDriveService
 from app.services.google_drive import GoogleDriveService
 from app.services.s3 import S3Service
+from app.services.progress_tracker import progress_tracker
 from sqlalchemy import select
 
 logger = logging.getLogger(__name__)
@@ -109,6 +110,9 @@ def transfer_single_file(self, item_id: int) -> dict:
 
                 logger.info(f"Starting transfer for item {item_id}: {item.source_path}")
 
+                # Update progress - file start
+                await progress_tracker.update_file_start(job.id, item.source_path, item.size)
+
                 # Get connected accounts
                 source_account_result = await db.execute(
                     select(ConnectedAccount).where(
@@ -193,6 +197,9 @@ def transfer_single_file(self, item_id: int) -> dict:
                 item.error_message = None
                 await db.commit()
 
+                # Update progress - file complete
+                await progress_tracker.update_file_complete(job.id, success=True, bytes_transferred=item.size)
+
                 logger.info(f"Transfer completed successfully for item {item_id}")
 
                 return {
@@ -214,6 +221,9 @@ def transfer_single_file(self, item_id: int) -> dict:
                     item.error_message = str(e)
                     item.completed_at = datetime.utcnow()
                     await db.commit()
+
+                    # Update progress - file failed
+                    await progress_tracker.update_file_complete(job.id, success=False, bytes_transferred=0)
 
                 # Retry logic - Celery will handle this based on configuration
                 raise TransferError(f"Transfer failed: {str(e)}")
@@ -258,6 +268,13 @@ def transfer_job_orchestrator(self, job_id: int) -> dict:
                     raise TransferError(f"Transfer job {job_id} not found")
 
                 logger.info(f"Starting transfer job {job_id} with {len(job.items)} items")
+
+                # Calculate totals
+                total_files = len(job.items)
+                total_size = sum(item.size for item in job.items)
+
+                # Initialize progress tracking
+                await progress_tracker.initialize_progress(job.id, total_files, total_size)
 
                 # Update job status
                 job.status = JobStatus.RUNNING
