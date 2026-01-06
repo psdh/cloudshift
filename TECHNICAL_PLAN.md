@@ -103,13 +103,13 @@
 
 **Description:** Define User model with fields for authentication, profile, and notification preferences.
 
-**Status:** `TODO`
+**Status:** `DONE`
 
 **Acceptance Criteria:**
-- [ ] User model with: id, email, password_hash, created_at, updated_at
-- [ ] Notification preferences fields: email_notifications, sms_notifications, phone_number
-- [ ] Alembic migration created and runs successfully
-- [ ] Model includes proper indexes on email
+- [x] User model with: id, email, password_hash, created_at, updated_at
+- [x] Notification preferences fields: email_notifications, sms_notifications, phone_number
+- [x] Alembic migration created and runs successfully
+- [x] Model includes proper indexes on email
 
 ---
 
