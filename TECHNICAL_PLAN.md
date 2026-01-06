@@ -799,15 +799,15 @@
 
 **Description:** Create main dashboard showing transfer overview.
 
-**Status:** `TODO`
+**Status:** `DONE`
 
 **Acceptance Criteria:**
-- [ ] Shows active transfers with real-time progress
-- [ ] Shows scheduled transfers with countdown
-- [ ] Shows recent completed transfers
-- [ ] "New Transfer" CTA button
-- [ ] Quick stats: total files migrated, data transferred
-- [ ] Empty state for new users
+- [x] Shows active transfers with real-time progress
+- [x] Shows scheduled transfers with countdown
+- [x] Shows recent completed transfers
+- [x] "New Transfer" CTA button
+- [x] Quick stats: total files migrated, data transferred
+- [x] Empty state for new users
 
 ---
 
