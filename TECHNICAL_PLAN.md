@@ -415,14 +415,14 @@
 
 **Description:** Create endpoint to configure transfer options (filters, conflict handling).
 
-**Status:** `TODO`
+**Status:** `DONE`
 
 **Acceptance Criteria:**
-- [ ] `PATCH /api/transfers/:id/config` updates job configuration
-- [ ] Accepts filter config: file_types[], date_range, folder_include[], folder_exclude[]
-- [ ] Accepts conflict_strategy: ask | skip_all | rename_all | overwrite_all
-- [ ] Validates job is in 'draft' or 'pending' status
-- [ ] Returns updated job config
+- [x] `PATCH /api/transfers/:id/config` updates job configuration
+- [x] Accepts filter config: file_types[], date_range, folder_include[], folder_exclude[]
+- [x] Accepts conflict_strategy: ask | skip_all | rename_all | overwrite_all
+- [x] Validates job is in 'draft' or 'pending' status
+- [x] Returns updated job config
 
 ---
 

@@ -3,12 +3,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from sqlalchemy.orm import selectinload
 from typing import List, Optional
-from datetime import datetime
+from datetime import datetime, date
 
 from app.core.database import get_db
 from app.core.security import get_current_user_id
-from app.models.transfer import TransferJob, TransferItem, JobStatus
-from pydantic import BaseModel
+from app.models.transfer import TransferJob, TransferItem, JobStatus, ConflictResolution
+from pydantic import BaseModel, Field, field_validator
 
 
 router = APIRouter(prefix="/api/transfers", tags=["transfers"])
@@ -70,6 +70,35 @@ class PaginatedTransfersResponse(BaseModel):
     page: int
     page_size: int
     total_pages: int
+
+
+class DateRangeFilter(BaseModel):
+    """Date range filter for files."""
+
+    start_date: Optional[date] = None
+    end_date: Optional[date] = None
+
+
+class TransferConfigUpdate(BaseModel):
+    """Request schema for updating transfer configuration."""
+
+    file_types: Optional[List[str]] = Field(None, description="List of file extensions to include (e.g., ['.pdf', '.docx'])")
+    date_range: Optional[DateRangeFilter] = None
+    folder_include: Optional[List[str]] = Field(None, description="Folder patterns to include")
+    folder_exclude: Optional[List[str]] = Field(None, description="Folder patterns to exclude")
+    conflict_strategy: Optional[str] = Field(None, description="Conflict resolution strategy: ask, skip_all, rename_all, or overwrite_all")
+
+    @field_validator("conflict_strategy")
+    @classmethod
+    def validate_conflict_strategy(cls, v: Optional[str]) -> Optional[str]:
+        """Validate conflict strategy is one of the allowed values."""
+        if v is None:
+            return v
+
+        valid_strategies = ["ask", "skip_all", "rename_all", "overwrite_all"]
+        if v not in valid_strategies:
+            raise ValueError(f"conflict_strategy must be one of: {', '.join(valid_strategies)}")
+        return v
 
 
 @router.post("", response_model=TransferJobDetail, status_code=status.HTTP_201_CREATED)
@@ -351,3 +380,92 @@ async def delete_transfer(
         "message": "Transfer job deleted successfully",
         "job_id": job_id
     }
+
+
+@router.patch("/{job_id}/config", response_model=TransferJobDetail)
+async def update_transfer_config(
+    job_id: int,
+    config_update: TransferConfigUpdate,
+    user_id: int = Depends(get_current_user_id),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Update transfer job configuration (filters, conflict handling).
+
+    Can only update jobs in DRAFT or PENDING status.
+
+    Args:
+        job_id: Transfer job ID
+        config_update: Configuration updates
+        user_id: Current user ID from JWT token
+        db: Database session
+
+    Returns:
+        TransferJobDetail: Updated transfer job
+
+    Raises:
+        HTTPException 404: If job not found
+        HTTPException 400: If job status doesn't allow updates
+    """
+    # Fetch the job
+    result = await db.execute(
+        select(TransferJob).where(
+            TransferJob.id == job_id,
+            TransferJob.user_id == user_id
+        )
+    )
+    job = result.scalar_one_or_none()
+
+    if not job:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Transfer job not found"
+        )
+
+    # Check if job can be configured
+    if job.status not in [JobStatus.DRAFT, JobStatus.PENDING]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Cannot update configuration for job with status '{job.status.value}'"
+        )
+
+    # Get existing config or initialize
+    current_config = job.config or {}
+
+    # Update config with provided values
+    if config_update.file_types is not None:
+        current_config["file_types"] = config_update.file_types
+
+    if config_update.date_range is not None:
+        current_config["date_range"] = {
+            "start_date": config_update.date_range.start_date.isoformat() if config_update.date_range.start_date else None,
+            "end_date": config_update.date_range.end_date.isoformat() if config_update.date_range.end_date else None
+        }
+
+    if config_update.folder_include is not None:
+        current_config["folder_include"] = config_update.folder_include
+
+    if config_update.folder_exclude is not None:
+        current_config["folder_exclude"] = config_update.folder_exclude
+
+    if config_update.conflict_strategy is not None:
+        current_config["conflict_strategy"] = config_update.conflict_strategy
+
+    # Update job config
+    job.config = current_config
+    await db.commit()
+    await db.refresh(job)
+
+    return TransferJobDetail(
+        id=job.id,
+        status=job.status.value,
+        source_provider=job.source_provider,
+        dest_provider=job.dest_provider,
+        source_folder_id=job.source_folder_id,
+        dest_folder_id=job.dest_folder_id,
+        config=job.config,
+        created_at=job.created_at.isoformat(),
+        started_at=job.started_at.isoformat() if job.started_at else None,
+        completed_at=job.completed_at.isoformat() if job.completed_at else None,
+        scheduled_for=job.scheduled_for.isoformat() if job.scheduled_for else None
+    )
