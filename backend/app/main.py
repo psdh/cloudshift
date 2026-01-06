@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.core.database import test_connection
+from app.core.errors import register_error_handlers
 from app.api.health import router as health_router
 from app.api.auth import router as auth_router
 from app.api.oauth import router as oauth_router
@@ -15,6 +16,9 @@ app = FastAPI(
     version=settings.APP_VERSION,
     debug=settings.DEBUG,
 )
+
+# Register error handlers
+register_error_handlers(app)
 
 # Configure CORS
 app.add_middleware(

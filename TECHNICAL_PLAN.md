@@ -977,14 +977,14 @@
 
 **Description:** Standardize error responses across all API endpoints.
 
-**Status:** `TODO`
+**Status:** `DONE`
 
 **Acceptance Criteria:**
-- [ ] Consistent error format: { error: string, code: string, details?: object }
-- [ ] Appropriate HTTP status codes
-- [ ] User-friendly error messages
-- [ ] Internal errors logged with stack trace
-- [ ] Sensitive info not exposed in responses
+- [x] Consistent error format: { error: string, code: string, details?: object }
+- [x] Appropriate HTTP status codes
+- [x] User-friendly error messages
+- [x] Internal errors logged with stack trace
+- [x] Sensitive info not exposed in responses
 
 ---
 
