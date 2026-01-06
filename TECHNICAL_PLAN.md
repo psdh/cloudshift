@@ -1071,14 +1071,14 @@
 
 **Description:** Generate and publish API documentation.
 
-**Status:** `TODO`
+**Status:** `DONE`
 
 **Acceptance Criteria:**
-- [ ] OpenAPI/Swagger spec generated from FastAPI
-- [ ] All endpoints documented with examples
-- [ ] Authentication documented
-- [ ] Error codes documented
-- [ ] Accessible at /docs endpoint
+- [x] OpenAPI/Swagger spec generated from FastAPI
+- [x] All endpoints documented with examples
+- [x] Authentication documented
+- [x] Error codes documented
+- [x] Accessible at /docs endpoint
 
 ---
 

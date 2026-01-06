@@ -15,6 +15,28 @@ app = FastAPI(
     title=settings.APP_NAME,
     version=settings.APP_VERSION,
     debug=settings.DEBUG,
+    description="""
+CloudShift API - Cloud File Migration Service
+
+Transfer files seamlessly between OneDrive and Google Drive with:
+* OAuth 2.0 integration for secure cloud access
+* Real-time transfer progress tracking
+* Conflict detection and resolution
+* File filtering and scheduling
+* Comprehensive audit logging
+
+**Interactive Documentation:**
+* Swagger UI: /docs
+* ReDoc: /redoc
+* OpenAPI JSON: /openapi.json
+    """,
+    contact={
+        "name": "CloudShift Support",
+        "email": "support@cloudshift.example.com",
+    },
+    license_info={
+        "name": "MIT License",
+    },
 )
 
 # Register error handlers
