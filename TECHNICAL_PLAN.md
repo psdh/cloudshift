@@ -384,14 +384,14 @@
 
 **Description:** Define models for transfer jobs, job items, and conflict records.
 
-**Status:** `TODO`
+**Status:** `DONE`
 
 **Acceptance Criteria:**
-- [ ] TransferJob model: id, user_id, status (enum), source_provider, dest_provider, source_folder_id, dest_folder_id, config (JSON), created_at, started_at, completed_at, scheduled_for
-- [ ] TransferItem model: id, job_id, source_file_id, source_path, dest_path, status, size, error_message, started_at, completed_at
-- [ ] ConflictRecord model: id, job_id, item_id, resolution (skip/rename/overwrite), resolved_at
-- [ ] Proper indexes on foreign keys and status fields
-- [ ] Migrations created
+- [x] TransferJob model: id, user_id, status (enum), source_provider, dest_provider, source_folder_id, dest_folder_id, config (JSON), created_at, started_at, completed_at, scheduled_for
+- [x] TransferItem model: id, job_id, source_file_id, source_path, dest_path, status, size, error_message, started_at, completed_at
+- [x] ConflictRecord model: id, job_id, item_id, resolution (skip/rename/overwrite), resolved_at
+- [x] Proper indexes on foreign keys and status fields
+- [x] Migrations created
 
 ---
 
