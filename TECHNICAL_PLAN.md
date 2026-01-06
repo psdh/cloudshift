@@ -767,13 +767,13 @@
 
 **Description:** Implement scheduled job to clean up old audit logs.
 
-**Status:** `TODO`
+**Status:** `DONE`
 
 **Acceptance Criteria:**
-- [ ] Celery beat task runs daily
-- [ ] Deletes audit logs older than 30 days
-- [ ] Logs number of records deleted
-- [ ] Handles large deletes in batches
+- [x] Celery beat task runs daily
+- [x] Deletes audit logs older than 30 days
+- [x] Logs number of records deleted
+- [x] Handles large deletes in batches
 
 ---
 

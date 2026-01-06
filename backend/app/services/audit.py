@@ -1,9 +1,13 @@
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import delete
 from fastapi import Request
 from typing import Optional, Dict, Any
+from datetime import datetime, timedelta
 import logging
 
 from app.models.audit_log import AuditLog, AuditAction
+from app.core.celery_app import celery_app
+from app.core.database import get_db
 
 logger = logging.getLogger(__name__)
 
@@ -250,3 +254,59 @@ class AuditService:
             details={"changes": config_changes},
             request=request
         )
+
+
+@celery_app.task(name="app.services.audit.cleanup_old_logs")
+def cleanup_old_logs():
+    """
+    Celery task to clean up audit logs older than 30 days.
+    Runs daily via Celery Beat.
+    """
+    import asyncio
+
+    async def _cleanup():
+        """Async function to perform the cleanup."""
+        # Calculate cutoff date (30 days ago)
+        cutoff_date = datetime.utcnow() - timedelta(days=30)
+
+        logger.info(f"Starting audit log cleanup for entries before {cutoff_date}")
+
+        # Get database session
+        async for db in get_db():
+            try:
+                # Delete old logs in batches
+                batch_size = 1000
+                total_deleted = 0
+
+                while True:
+                    # Delete a batch
+                    result = await db.execute(
+                        delete(AuditLog)
+                        .where(AuditLog.created_at < cutoff_date)
+                        .execution_options(synchronize_session=False)
+                    )
+
+                    await db.commit()
+
+                    deleted_count = result.rowcount
+                    total_deleted += deleted_count
+
+                    logger.debug(f"Deleted {deleted_count} audit logs in this batch")
+
+                    # If we deleted fewer than batch_size, we're done
+                    if deleted_count < batch_size:
+                        break
+
+                logger.info(f"Audit log cleanup completed. Deleted {total_deleted} records older than {cutoff_date}")
+                return total_deleted
+
+            except Exception as e:
+                logger.error(f"Error during audit log cleanup: {str(e)}")
+                await db.rollback()
+                raise
+            finally:
+                await db.close()
+                break
+
+    # Run the async cleanup function
+    return asyncio.run(_cleanup())
