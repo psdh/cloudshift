@@ -2,6 +2,9 @@ from passlib.context import CryptContext
 from datetime import datetime, timedelta
 from jose import JWTError, jwt
 from typing import Optional
+from fastapi import Depends, HTTPException, status
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 
@@ -92,3 +95,106 @@ def decode_token(token: str) -> Optional[dict]:
         return payload
     except JWTError:
         return None
+
+
+# HTTP Bearer for JWT authentication
+security = HTTPBearer()
+
+
+async def get_current_user_id(
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+) -> int:
+    """
+    Extract and validate JWT token from Authorization header.
+    Returns the user ID from the token.
+
+    Args:
+        credentials: HTTP Bearer credentials from Authorization header
+
+    Returns:
+        int: User ID from the token
+
+    Raises:
+        HTTPException 401: If token is invalid, expired, or missing
+    """
+    token = credentials.credentials
+
+    # Decode and verify token
+    payload = decode_token(token)
+
+    if payload is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    # Verify token type
+    token_type = payload.get("type")
+    if token_type != "access":
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token type",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    # Extract user ID
+    user_id = payload.get("sub")
+    if user_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token payload",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    try:
+        return int(user_id)
+    except (ValueError, TypeError):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid user ID in token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+
+async def get_current_user(
+    user_id: int = Depends(get_current_user_id),
+    db: AsyncSession = Depends(),
+):
+    """
+    Get the current user from the database based on JWT token.
+    This is a dependency that requires database session injection.
+
+    Usage:
+        from app.core.database import get_db
+        from app.core.security import get_current_user
+
+        @router.get("/protected")
+        async def protected_route(
+            current_user: User = Depends(get_current_user),
+            db: AsyncSession = Depends(get_db)
+        ):
+            ...
+
+    Args:
+        user_id: User ID from the JWT token
+        db: Database session (must be passed via Depends(get_db))
+
+    Returns:
+        User: Current user object
+
+    Raises:
+        HTTPException 401: If user not found
+    """
+    from app.services.auth import AuthService
+
+    user = await AuthService.get_user_by_id(db, user_id)
+
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User not found",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    return user

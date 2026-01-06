@@ -149,14 +149,14 @@
 
 **Description:** Create middleware to validate JWT on protected routes and endpoint to refresh tokens.
 
-**Status:** `TODO`
+**Status:** `DONE`
 
 **Acceptance Criteria:**
-- [ ] Middleware extracts and validates JWT from Authorization header
-- [ ] Invalid/expired token returns 401
-- [ ] `POST /api/auth/refresh` endpoint accepts refresh token
-- [ ] Returns new access token if refresh token valid
-- [ ] User object available in request context after auth
+- [x] Middleware extracts and validates JWT from Authorization header
+- [x] Invalid/expired token returns 401
+- [x] `POST /api/auth/refresh` endpoint accepts refresh token
+- [x] Returns new access token if refresh token valid
+- [x] User object available in request context after auth
 
 ---
 
