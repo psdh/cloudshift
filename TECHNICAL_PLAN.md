@@ -260,13 +260,13 @@
 
 **Description:** Create endpoints to list, disconnect, and check status of connected accounts.
 
-**Status:** `TODO`
+**Status:** `DONE`
 
 **Acceptance Criteria:**
-- [ ] `GET /api/accounts` lists user's connected accounts (provider, email, connected_at)
-- [ ] `DELETE /api/accounts/:provider` disconnects account and deletes tokens
-- [ ] `GET /api/accounts/:provider/status` checks if token is valid
-- [ ] Does not expose raw tokens in responses
+- [x] `GET /api/accounts` lists user's connected accounts (provider, email, connected_at)
+- [x] `DELETE /api/accounts/:provider` disconnects account and deletes tokens
+- [x] `GET /api/accounts/:provider/status` checks if token is valid
+- [x] Does not expose raw tokens in responses
 
 ---
 
