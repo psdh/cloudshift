@@ -197,14 +197,14 @@
 
 **Description:** Define model to store OAuth tokens for connected cloud accounts.
 
-**Status:** `TODO`
+**Status:** `DONE`
 
 **Acceptance Criteria:**
-- [ ] ConnectedAccount model with: id, user_id, provider (enum), access_token, refresh_token, token_expiry, account_email, created_at
-- [ ] Tokens encrypted at rest using Fernet or similar
-- [ ] Foreign key to User with cascade delete
-- [ ] Unique constraint on (user_id, provider)
-- [ ] Migration created and runs successfully
+- [x] ConnectedAccount model with: id, user_id, provider (enum), access_token, refresh_token, token_expiry, account_email, created_at
+- [x] Tokens encrypted at rest using Fernet or similar
+- [x] Foreign key to User with cascade delete
+- [x] Unique constraint on (user_id, provider)
+- [x] Migration created and runs successfully
 
 ---
 

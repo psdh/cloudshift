@@ -41,8 +41,10 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 15
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
 
-    # Encryption
-    FERNET_KEY: Optional[str] = None
+    # Encryption (32-byte URL-safe base64-encoded key for Fernet)
+    # Generate with: from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())
+    # This is a development key - MUST be changed in production
+    ENCRYPTION_KEY: str = "LiVnlcD7MNZvMYRuQPxo83eRjYwCja4MnWmxoO2E3lM="
 
     # Notifications
     TWILIO_ACCOUNT_SID: Optional[str] = None
