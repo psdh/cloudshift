@@ -133,15 +133,15 @@
 
 **Description:** Create API endpoint for user login returning JWT tokens.
 
-**Status:** `TODO`
+**Status:** `DONE`
 
 **Acceptance Criteria:**
-- [ ] `POST /api/auth/login` endpoint
-- [ ] Validates email and password
-- [ ] Returns JWT access token and refresh token
-- [ ] Access token expires in 15 minutes
-- [ ] Refresh token expires in 7 days
-- [ ] Failed login returns 401 with generic message
+- [x] `POST /api/auth/login` endpoint
+- [x] Validates email and password
+- [x] Returns JWT access token and refresh token
+- [x] Access token expires in 15 minutes
+- [x] Refresh token expires in 7 days
+- [x] Failed login returns 401 with generic message
 
 ---
 
