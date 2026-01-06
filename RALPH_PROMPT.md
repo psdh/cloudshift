@@ -10,17 +10,20 @@ You are implementing CloudShift, a cloud file migration webapp (OneDrive → Goo
 ## Your Mission
 Implement CloudShift by working through TECHNICAL_PLAN.md systematically. Each iteration:
 
-1. **Read** `TECHNICAL_PLAN.md` to find the next `TODO` task
-2. **Implement** that task fully, meeting ALL acceptance criteria
-3. **Test** your implementation (run tests, verify it works)
-4. **Update** `TECHNICAL_PLAN.md` - mark task as `DONE` and check off completed criteria
-5. **Commit** your changes with a descriptive message
-6. **Continue** to the next task
+1. **Read** `TECHNICAL_PLAN.md` to find the next `TODO` tasks
+2. **Complete 1-5 tasks** in this iteration:
+   - For EACH task individually:
+     - Implement the task fully, meeting ALL acceptance criteria
+     - Test your implementation (run tests, verify it works)
+     - Update `TECHNICAL_PLAN.md` - mark task as `DONE` and check off completed criteria
+     - **Commit that task individually** with a descriptive message
+   - Repeat for each task (up to 5 tasks total)
+3. **Finish iteration** after completing 1-5 tasks - Do NOT continue beyond 5 tasks
 
 ## Rules
 
 ### Task Order
-- You decide which task to work on next
+- You decide which tasks to work on next
 - Consider dependencies (e.g., database models before API endpoints)
 - Prioritize unblocking other tasks
 - It's fine to work on multiple epics in parallel if it makes sense
@@ -34,9 +37,10 @@ Implement CloudShift by working through TECHNICAL_PLAN.md systematically. Each i
 - Keep code clean and readable
 
 ### Git Discipline
-- One commit per completed task
+- **One commit per completed task** (CRITICAL: Do not batch commits)
 - Commit message format: `feat(epic-N): Task X.Y - <task name>`
 - Example: `feat(epic-1): Task 1.1 - Initialize Python backend project`
+- If you complete 3 tasks in an iteration, you should have 3 separate commits
 
 ### When Stuck
 - If a task fails after 3 attempts, mark it `BLOCKED` with a note explaining why
@@ -58,8 +62,9 @@ Before starting work, report:
 Completed: X/70 tasks
 Blocked: X tasks
 Remaining: X tasks
-Next Task: [Task X.Y - Name]
-Rationale: [Why this task next]
+Tasks planned for this iteration: [1-5]
+Next Tasks: [Task X.Y - Name, Task X.Y - Name, ...]
+Rationale: [Why these tasks and why this grouping]
 ===============================
 ```
 
@@ -67,5 +72,6 @@ Rationale: [Why this task next]
 
 1. Read TECHNICAL_PLAN.md to understand the full scope
 2. Assess what's already done (check for existing code/files)
-3. Pick the most logical next task to work on
-4. Begin implementation
+3. Pick 1-5 logical tasks to work on in this iteration
+4. Complete those tasks (implement, test, update plan, commit EACH ONE individually)
+5. Finish the iteration after completing 1-5 tasks

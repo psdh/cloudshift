@@ -6,6 +6,8 @@ import Layout from '@/components/Layout';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import OneDriveFileBrowser from '@/components/transfers/OneDriveFileBrowser';
 import GoogleDriveFileBrowser from '@/components/transfers/GoogleDriveFileBrowser';
+import FilterConfiguration, { TransferFilters } from '@/components/transfers/FilterConfiguration';
+import ReviewConfirm from '@/components/transfers/ReviewConfirm';
 
 interface OneDriveItem {
   id: string;
@@ -22,6 +24,12 @@ export default function NewTransferPage() {
   const [selectedSource, setSelectedSource] = useState<OneDriveItem[]>([]);
   const [destinationFolderId, setDestinationFolderId] = useState<string>('');
   const [destinationFolderName, setDestinationFolderName] = useState<string>('');
+  const [filters, setFilters] = useState<TransferFilters>({
+    fileTypes: [],
+    dateRange: { startDate: '', endDate: '' },
+    folderInclude: [],
+    folderExclude: []
+  });
 
   const handleNext = () => {
     if (step === 1 && selectedSource.length === 0) {
@@ -167,22 +175,44 @@ export default function NewTransferPage() {
             </div>
           )}
 
-          {/* Steps 3-4 will be implemented in subsequent tasks (11.4-11.5) */}
-          {step > 2 && (
-            <div className="bg-white rounded-lg shadow p-12 text-center">
-              <h2 className="text-xl font-semibold text-gray-900 mb-2">
-                Step {step} - Coming Soon
-              </h2>
-              <p className="text-gray-600 mb-6">
-                This step will be implemented in Tasks 11.4-11.5
-              </p>
-              <button
-                onClick={handleBack}
-                className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
-              >
-                Go Back
-              </button>
+          {/* Step 3: Filter Configuration */}
+          {step === 3 && (
+            <div>
+              <div className="mb-6">
+                <h1 className="text-3xl font-bold text-gray-900">Configure Filters</h1>
+                <p className="mt-2 text-gray-600">
+                  Optionally filter which files to transfer based on type, date, or folder
+                </p>
+              </div>
+
+              <FilterConfiguration onFiltersChange={setFilters} initialFilters={filters} />
+
+              <div className="mt-6 flex justify-between">
+                <button
+                  onClick={handleBack}
+                  className="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 font-medium transition-colors"
+                >
+                  Back
+                </button>
+                <button
+                  onClick={handleNext}
+                  className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
+                >
+                  Next: Review & Confirm
+                </button>
+              </div>
             </div>
+          )}
+
+          {/* Step 4: Review & Confirm */}
+          {step === 4 && (
+            <ReviewConfirm
+              selectedSource={selectedSource}
+              destinationFolderId={destinationFolderId}
+              destinationFolderName={destinationFolderName}
+              filters={filters}
+              onBack={handleBack}
+            />
           )}
         </div>
       </Layout>

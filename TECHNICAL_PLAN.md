@@ -862,16 +862,16 @@
 
 **Description:** Create review page showing transfer summary before starting.
 
-**Status:** `TODO`
+**Status:** `DONE`
 
 **Acceptance Criteria:**
-- [ ] Summary: source, destination, file count, total size
-- [ ] Folder structure preview
-- [ ] Detected conflicts listed
-- [ ] Conflict handling option selection
-- [ ] Schedule option with date/time picker
-- [ ] "Run Dry Run" button
-- [ ] "Start Transfer" / "Schedule Transfer" buttons
+- [x] Summary: source, destination, file count, total size
+- [x] Folder structure preview
+- [x] Detected conflicts listed
+- [x] Conflict handling option selection
+- [x] Schedule option with date/time picker
+- [x] "Run Dry Run" button
+- [x] "Start Transfer" / "Schedule Transfer" buttons
 
 ---
 
