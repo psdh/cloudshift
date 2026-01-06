@@ -30,14 +30,17 @@ export default function DashboardPage() {
                 View and manage your file transfers (Coming soon)
               </p>
             </div>
-            <div className="bg-white shadow rounded-lg p-6 opacity-50 cursor-not-allowed">
+            <Link
+              href="/audit-logs"
+              className="bg-white shadow rounded-lg p-6 hover:shadow-lg transition-shadow"
+            >
               <h3 className="text-lg font-semibold text-gray-900 mb-2">
                 Activity Log
               </h3>
               <p className="text-sm text-gray-600">
-                Review your account activity (Coming soon)
+                Review your account activity and audit logs
               </p>
-            </div>
+            </Link>
           </div>
         </div>
       </Layout>
