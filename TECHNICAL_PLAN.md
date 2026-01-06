@@ -815,15 +815,15 @@
 
 **Description:** Create UI for selecting source files/folders from OneDrive.
 
-**Status:** `TODO`
+**Status:** `DONE`
 
 **Acceptance Criteria:**
-- [ ] File browser showing OneDrive contents
-- [ ] Navigate into folders
-- [ ] Select entire folders or individual files
-- [ ] Shows file size and count for selection
-- [ ] Breadcrumb navigation
-- [ ] "Select All" option
+- [x] File browser showing OneDrive contents
+- [x] Navigate into folders
+- [x] Select entire folders or individual files
+- [x] Shows file size and count for selection
+- [x] Breadcrumb navigation
+- [x] "Select All" option
 
 ---
 
