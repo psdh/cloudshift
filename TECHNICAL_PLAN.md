@@ -292,14 +292,14 @@
 
 **Description:** Implement service to list files and folders from OneDrive.
 
-**Status:** `TODO`
+**Status:** `DONE`
 
 **Acceptance Criteria:**
-- [ ] Function to list root folder contents
-- [ ] Function to list specific folder contents by path/ID
-- [ ] Returns normalized file objects: id, name, type (file/folder), size, modified_at, path
-- [ ] Handles pagination for large folders
-- [ ] Uses auto-refreshed tokens
+- [x] Function to list root folder contents
+- [x] Function to list specific folder contents by path/ID
+- [x] Returns normalized file objects: id, name, type (file/folder), size, modified_at, path
+- [x] Handles pagination for large folders
+- [x] Uses auto-refreshed tokens
 
 ---
 
@@ -307,14 +307,14 @@
 
 **Description:** Implement service to download files from OneDrive with streaming support.
 
-**Status:** `TODO`
+**Status:** `DONE`
 
 **Acceptance Criteria:**
-- [ ] Function to download file by ID
-- [ ] Supports streaming download for large files
-- [ ] Returns file stream and metadata (size, checksum if available)
-- [ ] Handles download errors with retries
-- [ ] Reports download progress via callback
+- [x] Function to download file by ID
+- [x] Supports streaming download for large files
+- [x] Returns file stream and metadata (size, checksum if available)
+- [x] Handles download errors with retries
+- [x] Reports download progress via callback
 
 ---
 
@@ -322,14 +322,14 @@
 
 **Description:** Implement service to list files and folders from Google Drive.
 
-**Status:** `TODO`
+**Status:** `DONE`
 
 **Acceptance Criteria:**
-- [ ] Function to list root folder contents
-- [ ] Function to list specific folder contents by ID
-- [ ] Returns normalized file objects matching OneDrive format
-- [ ] Handles pagination
-- [ ] Uses auto-refreshed tokens
+- [x] Function to list root folder contents
+- [x] Function to list specific folder contents by ID
+- [x] Returns normalized file objects matching OneDrive format
+- [x] Handles pagination
+- [x] Uses auto-refreshed tokens
 
 ---
 
@@ -337,15 +337,15 @@
 
 **Description:** Implement service to upload files to Google Drive with resumable upload support.
 
-**Status:** `TODO`
+**Status:** `DONE`
 
 **Acceptance Criteria:**
-- [ ] Function to upload file to specified folder
-- [ ] Uses resumable upload API for files > 5MB
-- [ ] Creates folder if destination path doesn't exist
-- [ ] Returns uploaded file metadata
-- [ ] Reports upload progress via callback
-- [ ] Handles upload errors with retries
+- [x] Function to upload file to specified folder
+- [x] Uses resumable upload API for files > 5MB
+- [x] Creates folder if destination path doesn't exist
+- [x] Returns uploaded file metadata
+- [x] Reports upload progress via callback
+- [x] Handles upload errors with retries
 
 ---
 
@@ -353,14 +353,14 @@
 
 **Description:** Implement service to create folder hierarchy in Google Drive.
 
-**Status:** `TODO`
+**Status:** `DONE`
 
 **Acceptance Criteria:**
-- [ ] Function to create single folder in parent
-- [ ] Function to create nested folder path (creates all intermediate folders)
-- [ ] Returns folder ID after creation
-- [ ] Idempotent: returns existing folder if already exists
-- [ ] Handles naming conflicts
+- [x] Function to create single folder in parent
+- [x] Function to create nested folder path (creates all intermediate folders)
+- [x] Returns folder ID after creation
+- [x] Idempotent: returns existing folder if already exists
+- [x] Handles naming conflicts
 
 ---
 
