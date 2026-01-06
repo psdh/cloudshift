@@ -117,15 +117,15 @@
 
 **Description:** Create API endpoint for user registration with email/password.
 
-**Status:** `TODO`
+**Status:** `DONE`
 
 **Acceptance Criteria:**
-- [ ] `POST /api/auth/register` endpoint
-- [ ] Email validation and uniqueness check
-- [ ] Password hashing with bcrypt
-- [ ] Returns user object (without password)
-- [ ] Proper error responses for duplicate email, weak password
-- [ ] Unit tests for registration logic
+- [x] `POST /api/auth/register` endpoint
+- [x] Email validation and uniqueness check
+- [x] Password hashing with bcrypt
+- [x] Returns user object (without password)
+- [x] Proper error responses for duplicate email, weak password
+- [x] Unit tests for registration logic
 
 ---
 
