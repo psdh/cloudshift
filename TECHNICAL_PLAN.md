@@ -1086,13 +1086,13 @@
 
 **Description:** Document all required environment variables and configuration.
 
-**Status:** `TODO`
+**Status:** `DONE`
 
 **Acceptance Criteria:**
-- [ ] List of all env vars with descriptions
-- [ ] Example .env.example file
-- [ ] Required vs optional clearly marked
-- [ ] Setup instructions for local development
+- [x] List of all env vars with descriptions
+- [x] Example .env.example file
+- [x] Required vs optional clearly marked
+- [x] Setup instructions for local development
 
 ---
 
