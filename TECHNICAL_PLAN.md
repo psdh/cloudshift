@@ -1009,14 +1009,14 @@
 
 **Description:** Write unit tests for transfer orchestration logic.
 
-**Status:** `TODO`
+**Status:** `DONE`
 
 **Acceptance Criteria:**
-- [ ] Tests for job state transitions
-- [ ] Tests for conflict detection
-- [ ] Tests for filter application
-- [ ] Tests for progress calculation
-- [ ] Mock cloud API calls
+- [x] Tests for job state transitions
+- [x] Tests for conflict detection
+- [x] Tests for filter application
+- [x] Tests for progress calculation
+- [x] Mock cloud API calls
 
 ---
 
