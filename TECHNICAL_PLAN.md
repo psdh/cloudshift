@@ -576,15 +576,15 @@
 
 **Description:** Create endpoints for users to resolve conflicts.
 
-**Status:** `TODO`
+**Status:** `DONE`
 
 **Acceptance Criteria:**
-- [ ] `GET /api/transfers/:id/conflicts` lists pending conflicts
-- [ ] `POST /api/transfers/:id/conflicts/:conflict_id/resolve` resolves single conflict
-- [ ] `POST /api/transfers/:id/conflicts/resolve-all` applies resolution to all pending
-- [ ] Accepts resolution: skip | rename | overwrite
-- [ ] Resumes job after conflicts resolved
-- [ ] Validates user owns the job
+- [x] `GET /api/transfers/:id/conflicts` lists pending conflicts
+- [x] `POST /api/transfers/:id/conflicts/:conflict_id/resolve` resolves single conflict
+- [x] `POST /api/transfers/:id/conflicts/resolve-all` applies resolution to all pending
+- [x] Accepts resolution: skip | rename | overwrite
+- [x] Resumes job after conflicts resolved
+- [x] Validates user owns the job
 
 ---
 

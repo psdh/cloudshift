@@ -12,7 +12,7 @@ import json
 
 from app.core.database import get_db
 from app.core.security import get_current_user_id
-from app.models.transfer import TransferJob, TransferItem, JobStatus, ConflictResolution
+from app.models.transfer import TransferJob, TransferItem, JobStatus, ConflictResolution, ConflictRecord, ItemStatus
 from app.models.connected_account import ConnectedAccount
 from app.services.onedrive import OneDriveService
 from app.services.google_drive import GoogleDriveService
@@ -1136,3 +1136,338 @@ async def stream_transfer_progress(
             "X-Accel-Buffering": "no"  # Disable buffering in nginx
         }
     )
+
+
+class ConflictInfo(BaseModel):
+    """Information about a file conflict."""
+
+    id: int
+    item_id: int
+    source_path: str
+    dest_path: str
+    source_size: int
+    dest_file_exists: bool
+    resolution: Optional[str] = None
+    resolved_at: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
+class ConflictListResponse(BaseModel):
+    """Response schema for listing conflicts."""
+
+    conflicts: List[ConflictInfo]
+    total_conflicts: int
+    pending_conflicts: int
+    resolved_conflicts: int
+
+
+class ResolveConflictRequest(BaseModel):
+    """Request schema for resolving a conflict."""
+
+    resolution: str  # skip, rename, or overwrite
+
+    @field_validator("resolution")
+    @classmethod
+    def validate_resolution(cls, v: str) -> str:
+        """Validate resolution is one of the allowed values."""
+        valid_resolutions = ["skip", "rename", "overwrite"]
+        if v not in valid_resolutions:
+            raise ValueError(f"resolution must be one of: {', '.join(valid_resolutions)}")
+        return v
+
+
+class ResolveAllConflictsRequest(BaseModel):
+    """Request schema for resolving all conflicts."""
+
+    resolution: str  # skip, rename, or overwrite
+
+    @field_validator("resolution")
+    @classmethod
+    def validate_resolution(cls, v: str) -> str:
+        """Validate resolution is one of the allowed values."""
+        valid_resolutions = ["skip", "rename", "overwrite"]
+        if v not in valid_resolutions:
+            raise ValueError(f"resolution must be one of: {', '.join(valid_resolutions)}")
+        return v
+
+
+@router.get("/{job_id}/conflicts", response_model=ConflictListResponse)
+async def list_conflicts(
+    job_id: int,
+    user_id: int = Depends(get_current_user_id),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    List all conflicts for a transfer job.
+
+    Args:
+        job_id: Transfer job ID
+        user_id: Current user ID from JWT token
+        db: Database session
+
+    Returns:
+        ConflictListResponse: List of conflicts with details
+
+    Raises:
+        HTTPException 404: If job not found
+        HTTPException 403: If user doesn't own the job
+    """
+    # Verify job ownership
+    result = await db.execute(
+        select(TransferJob).where(
+            TransferJob.id == job_id,
+            TransferJob.user_id == user_id
+        )
+    )
+    job = result.scalar_one_or_none()
+
+    if not job:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Transfer job not found"
+        )
+
+    # Fetch conflicts with related item data
+    conflicts_result = await db.execute(
+        select(ConflictRecord)
+        .options(selectinload(ConflictRecord.item))
+        .where(ConflictRecord.job_id == job_id)
+        .order_by(ConflictRecord.id)
+    )
+    conflicts = conflicts_result.scalars().all()
+
+    # Format conflict information
+    conflict_list = []
+    pending_count = 0
+    resolved_count = 0
+
+    for conflict in conflicts:
+        if conflict.resolution is None:
+            pending_count += 1
+        else:
+            resolved_count += 1
+
+        conflict_list.append(
+            ConflictInfo(
+                id=conflict.id,
+                item_id=conflict.item_id,
+                source_path=conflict.item.source_path,
+                dest_path=conflict.item.dest_path or conflict.item.source_path,
+                source_size=conflict.item.size or 0,
+                dest_file_exists=True,  # Conflict means file exists
+                resolution=conflict.resolution.value if conflict.resolution else None,
+                resolved_at=conflict.resolved_at.isoformat() if conflict.resolved_at else None
+            )
+        )
+
+    return ConflictListResponse(
+        conflicts=conflict_list,
+        total_conflicts=len(conflict_list),
+        pending_conflicts=pending_count,
+        resolved_conflicts=resolved_count
+    )
+
+
+@router.post("/{job_id}/conflicts/{conflict_id}/resolve")
+async def resolve_conflict(
+    job_id: int,
+    conflict_id: int,
+    resolve_request: ResolveConflictRequest,
+    user_id: int = Depends(get_current_user_id),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Resolve a single conflict.
+
+    Args:
+        job_id: Transfer job ID
+        conflict_id: Conflict record ID
+        resolve_request: Resolution details
+        user_id: Current user ID from JWT token
+        db: Database session
+
+    Returns:
+        Dict with success message and updated conflict
+
+    Raises:
+        HTTPException 404: If job or conflict not found
+        HTTPException 403: If user doesn't own the job
+        HTTPException 400: If conflict already resolved
+    """
+    # Verify job ownership
+    result = await db.execute(
+        select(TransferJob).where(
+            TransferJob.id == job_id,
+            TransferJob.user_id == user_id
+        )
+    )
+    job = result.scalar_one_or_none()
+
+    if not job:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Transfer job not found"
+        )
+
+    # Fetch the conflict
+    conflict_result = await db.execute(
+        select(ConflictRecord)
+        .options(selectinload(ConflictRecord.item))
+        .where(
+            ConflictRecord.id == conflict_id,
+            ConflictRecord.job_id == job_id
+        )
+    )
+    conflict = conflict_result.scalar_one_or_none()
+
+    if not conflict:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Conflict not found"
+        )
+
+    if conflict.resolution is not None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Conflict already resolved"
+        )
+
+    # Apply resolution
+    resolution_enum = ConflictResolution(resolve_request.resolution)
+    conflict.resolution = resolution_enum
+    conflict.resolved_at = datetime.utcnow()
+
+    # Update transfer item based on resolution
+    if resolution_enum == ConflictResolution.SKIP:
+        conflict.item.status = ItemStatus.SKIPPED
+    elif resolution_enum == ConflictResolution.RENAME:
+        # Generate new filename with timestamp
+        timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+        original_path = conflict.item.dest_path or conflict.item.source_path
+        # Split into name and extension
+        if "." in original_path:
+            name, ext = original_path.rsplit(".", 1)
+            conflict.item.dest_path = f"{name}_{timestamp}.{ext}"
+        else:
+            conflict.item.dest_path = f"{original_path}_{timestamp}"
+    elif resolution_enum == ConflictResolution.OVERWRITE:
+        # Item will overwrite existing file
+        pass
+
+    await db.commit()
+    await db.refresh(conflict)
+
+    logger.info(f"Resolved conflict {conflict_id} for job {job_id} with resolution: {resolve_request.resolution}")
+
+    return {
+        "success": True,
+        "message": f"Conflict resolved with {resolve_request.resolution}",
+        "conflict_id": conflict_id,
+        "resolution": resolve_request.resolution,
+        "new_dest_path": conflict.item.dest_path
+    }
+
+
+@router.post("/{job_id}/conflicts/resolve-all")
+async def resolve_all_conflicts(
+    job_id: int,
+    resolve_request: ResolveAllConflictsRequest,
+    user_id: int = Depends(get_current_user_id),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Resolve all pending conflicts for a transfer job with the same resolution.
+
+    Args:
+        job_id: Transfer job ID
+        resolve_request: Resolution to apply to all conflicts
+        user_id: Current user ID from JWT token
+        db: Database session
+
+    Returns:
+        Dict with success message and count of resolved conflicts
+
+    Raises:
+        HTTPException 404: If job not found
+        HTTPException 403: If user doesn't own the job
+        HTTPException 400: If no pending conflicts
+    """
+    # Verify job ownership
+    result = await db.execute(
+        select(TransferJob).where(
+            TransferJob.id == job_id,
+            TransferJob.user_id == user_id
+        )
+    )
+    job = result.scalar_one_or_none()
+
+    if not job:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Transfer job not found"
+        )
+
+    # Fetch all pending conflicts
+    conflicts_result = await db.execute(
+        select(ConflictRecord)
+        .options(selectinload(ConflictRecord.item))
+        .where(
+            ConflictRecord.job_id == job_id,
+            ConflictRecord.resolution.is_(None)
+        )
+    )
+    pending_conflicts = conflicts_result.scalars().all()
+
+    if not pending_conflicts:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No pending conflicts to resolve"
+        )
+
+    # Apply resolution to all conflicts
+    resolution_enum = ConflictResolution(resolve_request.resolution)
+    resolved_count = 0
+
+    for conflict in pending_conflicts:
+        conflict.resolution = resolution_enum
+        conflict.resolved_at = datetime.utcnow()
+
+        # Update transfer item based on resolution
+        if resolution_enum == ConflictResolution.SKIP:
+            conflict.item.status = ItemStatus.SKIPPED
+        elif resolution_enum == ConflictResolution.RENAME:
+            # Generate new filename with timestamp
+            timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+            original_path = conflict.item.dest_path or conflict.item.source_path
+            # Split into name and extension
+            if "." in original_path:
+                name, ext = original_path.rsplit(".", 1)
+                conflict.item.dest_path = f"{name}_{timestamp}.{ext}"
+            else:
+                conflict.item.dest_path = f"{original_path}_{timestamp}"
+        elif resolution_enum == ConflictResolution.OVERWRITE:
+            # Item will overwrite existing file
+            pass
+
+        resolved_count += 1
+
+    await db.commit()
+
+    # If job was paused due to conflicts and all are now resolved, resume it
+    if job.status == JobStatus.PAUSED:
+        job.status = JobStatus.RUNNING
+        await db.commit()
+        logger.info(f"Resumed job {job_id} after resolving all conflicts")
+
+    logger.info(f"Resolved {resolved_count} conflicts for job {job_id} with resolution: {resolve_request.resolution}")
+
+    return {
+        "success": True,
+        "message": f"Resolved {resolved_count} conflicts with {resolve_request.resolution}",
+        "job_id": job_id,
+        "conflicts_resolved": resolved_count,
+        "resolution": resolve_request.resolution,
+        "job_resumed": job.status == JobStatus.RUNNING
+    }
