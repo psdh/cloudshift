@@ -723,13 +723,13 @@
 
 **Description:** Create model for storing audit log entries.
 
-**Status:** `TODO`
+**Status:** `DONE`
 
 **Acceptance Criteria:**
-- [ ] AuditLog model: id, user_id, action (enum), resource_type, resource_id, details (JSON), ip_address, user_agent, created_at
-- [ ] Actions: login, logout, transfer_created, transfer_started, transfer_completed, conflict_resolved, account_connected, account_disconnected, settings_changed
-- [ ] Index on user_id and created_at
-- [ ] Migration created
+- [x] AuditLog model: id, user_id, action (enum), resource_type, resource_id, details (JSON), ip_address, user_agent, created_at
+- [x] Actions: login, logout, transfer_created, transfer_started, transfer_completed, conflict_resolved, account_connected, account_disconnected, settings_changed
+- [x] Index on user_id and created_at
+- [x] Migration created
 
 ---
 

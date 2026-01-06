@@ -9,6 +9,7 @@ from app.models.transfer import (
     ItemStatus,
     ConflictResolution
 )
+from app.models.audit_log import AuditLog, AuditAction
 
 __all__ = [
     "User",
@@ -19,5 +20,7 @@ __all__ = [
     "ConflictRecord",
     "JobStatus",
     "ItemStatus",
-    "ConflictResolution"
+    "ConflictResolution",
+    "AuditLog",
+    "AuditAction"
 ]
