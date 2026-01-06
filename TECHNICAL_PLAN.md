@@ -54,15 +54,15 @@
 
 **Description:** Configure PostgreSQL database with connection pooling, create initial migration setup using Alembic.
 
-**Status:** `TODO`
+**Status:** `DONE`
 
 **Acceptance Criteria:**
-- [ ] PostgreSQL database created (local or Docker)
-- [ ] SQLAlchemy configured with async support
-- [ ] Alembic initialized for migrations
-- [ ] Database connection pool configured
-- [ ] Connection test passes on app startup
-- [ ] `docker-compose.yml` for local PostgreSQL (optional)
+- [x] PostgreSQL database created (local or Docker)
+- [x] SQLAlchemy configured with async support
+- [x] Alembic initialized for migrations
+- [x] Database connection pool configured
+- [x] Connection test passes on app startup
+- [x] `docker-compose.yml` for local PostgreSQL (optional)
 
 ---
 
