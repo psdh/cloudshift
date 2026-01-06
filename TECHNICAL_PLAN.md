@@ -513,14 +513,14 @@
 
 **Description:** Implement logic to resume partially completed transfers.
 
-**Status:** `TODO`
+**Status:** `DONE`
 
 **Acceptance Criteria:**
-- [ ] On resume, skips items with status 'completed'
-- [ ] Re-queues items with status 'failed' or 'pending'
-- [ ] Cleans up partial S3 files from previous attempt
-- [ ] Preserves original job configuration
-- [ ] `POST /api/transfers/:id/resume` endpoint
+- [x] On resume, skips items with status 'completed'
+- [x] Re-queues items with status 'failed' or 'pending'
+- [x] Cleans up partial S3 files from previous attempt
+- [x] Preserves original job configuration
+- [x] `POST /api/transfers/:id/resume` endpoint
 
 ---
 

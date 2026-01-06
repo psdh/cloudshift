@@ -5,6 +5,7 @@ from sqlalchemy.orm import selectinload
 from typing import List, Optional, Dict, Any
 from datetime import datetime, date
 from collections import defaultdict
+import logging
 
 from app.core.database import get_db
 from app.core.security import get_current_user_id
@@ -13,10 +14,14 @@ from app.models.connected_account import ConnectedAccount
 from app.services.onedrive import OneDriveService
 from app.services.google_drive import GoogleDriveService
 from app.services.conflict import ConflictDetectionService
+from app.services.s3 import S3Service
+from app.services.transfer_worker import transfer_single_file
 from pydantic import BaseModel, Field, field_validator
 
 
 router = APIRouter(prefix="/api/transfers", tags=["transfers"])
+
+logger = logging.getLogger(__name__)
 
 
 class CreateTransferRequest(BaseModel):
@@ -788,4 +793,121 @@ async def dry_run_transfer(
         total_size=total_size,
         conflicts=conflict_count,
         estimated_time_minutes=estimated_minutes
+    )
+
+
+class ResumeResponse(BaseModel):
+    """Response schema for resume transfer."""
+
+    job_id: int
+    items_to_retry: int
+    completed_items: int
+    s3_files_cleaned: int
+    task_ids: List[str]
+
+
+@router.post("/{job_id}/resume", response_model=ResumeResponse)
+async def resume_transfer(
+    job_id: int,
+    user_id: int = Depends(get_current_user_id),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Resume a failed or paused transfer job.
+
+    Skips completed items, re-queues failed/pending items, and cleans up partial S3 files.
+
+    Args:
+        job_id: Transfer job ID
+        user_id: Current user ID from JWT token
+        db: Database session
+
+    Returns:
+        ResumeResponse: Resume operation results
+
+    Raises:
+        HTTPException 404: If job not found
+        HTTPException 400: If job cannot be resumed
+    """
+    # Fetch the job with items
+    result = await db.execute(
+        select(TransferJob)
+        .options(selectinload(TransferJob.items))
+        .where(
+            TransferJob.id == job_id,
+            TransferJob.user_id == user_id
+        )
+    )
+    job = result.scalar_one_or_none()
+
+    if not job:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Transfer job not found"
+        )
+
+    # Check if job can be resumed
+    resumable_statuses = [JobStatus.FAILED, JobStatus.PAUSED, JobStatus.CANCELLED]
+    if job.status not in resumable_statuses:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Cannot resume job with status '{job.status.value}'. Only FAILED, PAUSED, or CANCELLED jobs can be resumed."
+        )
+
+    # Separate items by status
+    completed_items = [item for item in job.items if item.status == JobStatus.COMPLETED]
+    items_to_retry = [
+        item for item in job.items
+        if item.status in [JobStatus.FAILED, JobStatus.PENDING, JobStatus.RUNNING]
+    ]
+
+    if not items_to_retry:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No items to retry. All items are already completed."
+        )
+
+    # Clean up partial S3 files from previous attempts
+    s3_service = S3Service()
+    s3_files_cleaned = 0
+
+    for item in items_to_retry:
+        s3_key = f"transfers/{job.id}/{item.id}/{item.source_path}"
+        try:
+            # Check if partial file exists
+            if await s3_service.file_exists(s3_key):
+                await s3_service.delete_file(s3_key)
+                s3_files_cleaned += 1
+        except Exception as e:
+            # Log but don't fail - S3 cleanup is best-effort
+            logger.warning(f"Failed to clean up S3 file {s3_key}: {str(e)}")
+
+    # Reset items to pending status
+    for item in items_to_retry:
+        item.status = JobStatus.PENDING
+        item.started_at = None
+        item.completed_at = None
+        item.error_message = None
+
+    # Update job status
+    job.status = JobStatus.RUNNING
+    job.started_at = datetime.utcnow()
+    job.completed_at = None
+
+    await db.commit()
+
+    # Queue transfer tasks
+    task_ids = []
+    for item in items_to_retry[:5]:  # Process first 5 items (configurable)
+        task = transfer_single_file.delay(item.id)
+        task_ids.append(task.id)
+
+    logger.info(f"Resumed job {job_id}: {len(items_to_retry)} items to retry, {len(completed_items)} already completed")
+
+    return ResumeResponse(
+        job_id=job_id,
+        items_to_retry=len(items_to_retry),
+        completed_items=len(completed_items),
+        s3_files_cleaned=s3_files_cleaned,
+        task_ids=task_ids
     )
