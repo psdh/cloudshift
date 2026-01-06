@@ -1,13 +1,18 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
+from sqlalchemy import select, func, delete
 from sqlalchemy.orm import selectinload
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from datetime import datetime, date
+from collections import defaultdict
 
 from app.core.database import get_db
 from app.core.security import get_current_user_id
 from app.models.transfer import TransferJob, TransferItem, JobStatus, ConflictResolution
+from app.models.connected_account import ConnectedAccount
+from app.services.onedrive import OneDriveService
+from app.services.google_drive import GoogleDriveService
+from app.services.conflict import ConflictDetectionService
 from pydantic import BaseModel, Field, field_validator
 
 
@@ -468,4 +473,319 @@ async def update_transfer_config(
         started_at=job.started_at.isoformat() if job.started_at else None,
         completed_at=job.completed_at.isoformat() if job.completed_at else None,
         scheduled_for=job.scheduled_for.isoformat() if job.scheduled_for else None
+    )
+
+
+class AnalysisResponse(BaseModel):
+    """Response schema for file analysis."""
+
+    total_files: int
+    total_size: int
+    folder_count: int
+    file_type_breakdown: Dict[str, int]
+    potential_conflicts: int
+    items_created: int
+
+
+class DryRunFileInfo(BaseModel):
+    """Information about a file in dry run."""
+
+    source_name: str
+    source_path: str
+    dest_path: str
+    size: int
+    has_conflict: bool
+    conflict_resolution: Optional[str] = None
+
+
+class DryRunResponse(BaseModel):
+    """Response schema for dry run."""
+
+    files_to_transfer: List[DryRunFileInfo]
+    folders_to_create: List[str]
+    total_files: int
+    total_size: int
+    conflicts: int
+    estimated_time_minutes: int
+
+
+@router.post("/{job_id}/analyze", response_model=AnalysisResponse)
+async def analyze_transfer(
+    job_id: int,
+    user_id: int = Depends(get_current_user_id),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Analyze source files and create transfer items.
+
+    Args:
+        job_id: Transfer job ID
+        user_id: Current user ID from JWT token
+        db: Database session
+
+    Returns:
+        AnalysisResponse: Analysis results
+
+    Raises:
+        HTTPException 404: If job not found
+        HTTPException 400: If job already analyzed or wrong status
+    """
+    # Fetch the job
+    result = await db.execute(
+        select(TransferJob).where(
+            TransferJob.id == job_id,
+            TransferJob.user_id == user_id
+        )
+    )
+    job = result.scalar_one_or_none()
+
+    if not job:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Transfer job not found"
+        )
+
+    # Check if job is in valid state for analysis
+    if job.status not in [JobStatus.DRAFT, JobStatus.PENDING]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Cannot analyze job with status '{job.status.value}'"
+        )
+
+    # Get source account
+    source_result = await db.execute(
+        select(ConnectedAccount).where(
+            ConnectedAccount.user_id == user_id,
+            ConnectedAccount.provider == job.source_provider
+        )
+    )
+    source_account = source_result.scalar_one_or_none()
+
+    if not source_account:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Source account not connected: {job.source_provider}"
+        )
+
+    # Get destination account
+    dest_result = await db.execute(
+        select(ConnectedAccount).where(
+            ConnectedAccount.user_id == user_id,
+            ConnectedAccount.provider == job.dest_provider
+        )
+    )
+    dest_account = dest_result.scalar_one_or_none()
+
+    if not dest_account:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Destination account not connected: {job.dest_provider}"
+        )
+
+    # Delete any existing transfer items
+    await db.execute(
+        delete(TransferItem).where(TransferItem.job_id == job_id)
+    )
+    await db.commit()
+
+    # List source files
+    source_folder_id = job.source_folder_id or "root"
+    if job.source_provider == "onedrive":
+        files = await OneDriveService.list_folder(source_account, source_folder_id)
+    else:
+        files = await GoogleDriveService.list_folder(source_account, source_folder_id)
+
+    # Apply filters from config
+    config = job.config or {}
+    filtered_files = []
+    folder_count = 0
+
+    for file in files:
+        # Skip folders (count them separately)
+        if file.type == "folder":
+            folder_count += 1
+            continue
+
+        # Apply file type filter
+        if config.get("file_types"):
+            file_ext = file.name.split(".")[-1].lower() if "." in file.name else ""
+            if file_ext not in [ft.lower() for ft in config["file_types"]]:
+                continue
+
+        # Apply date range filter
+        if config.get("date_range") and file.modified_at:
+            start_date = config["date_range"].get("start_date")
+            end_date = config["date_range"].get("end_date")
+
+            if start_date:
+                start_dt = datetime.fromisoformat(start_date)
+                if file.modified_at < start_dt:
+                    continue
+
+            if end_date:
+                end_dt = datetime.fromisoformat(end_date)
+                if file.modified_at > end_dt:
+                    continue
+
+        filtered_files.append(file)
+
+    # Check for conflicts
+    file_names = [f.name for f in filtered_files]
+    dest_folder_id = job.dest_folder_id or "root"
+    conflicts = await ConflictDetectionService.check_conflicts_batch(
+        dest_account, file_names, dest_folder_id, case_insensitive=False
+    )
+    conflict_count = sum(1 for v in conflicts.values() if v is not None)
+
+    # Create transfer items
+    file_type_breakdown = defaultdict(int)
+    total_size = 0
+    items_created = 0
+
+    for file in filtered_files:
+        # Get file extension for breakdown
+        file_ext = file.name.split(".")[-1].lower() if "." in file.name else "none"
+        file_type_breakdown[file_ext] += 1
+        total_size += file.size
+
+        # Create transfer item
+        item = TransferItem(
+            job_id=job_id,
+            source_file_id=file.id,
+            source_path=file.name,
+            dest_path=file.name,
+            status=JobStatus.PENDING,
+            size=file.size
+        )
+        db.add(item)
+        items_created += 1
+
+    await db.commit()
+
+    # Update job status
+    job.status = JobStatus.PENDING
+    await db.commit()
+
+    return AnalysisResponse(
+        total_files=len(filtered_files),
+        total_size=total_size,
+        folder_count=folder_count,
+        file_type_breakdown=dict(file_type_breakdown),
+        potential_conflicts=conflict_count,
+        items_created=items_created
+    )
+
+
+@router.post("/{job_id}/dry-run", response_model=DryRunResponse)
+async def dry_run_transfer(
+    job_id: int,
+    user_id: int = Depends(get_current_user_id),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Perform a dry run to preview the transfer without modifying files.
+
+    Args:
+        job_id: Transfer job ID
+        user_id: Current user ID from JWT token
+        db: Database session
+
+    Returns:
+        DryRunResponse: Detailed preview of transfer
+
+    Raises:
+        HTTPException 404: If job not found
+        HTTPException 400: If no items to transfer
+    """
+    # Fetch the job with items
+    result = await db.execute(
+        select(TransferJob)
+        .options(selectinload(TransferJob.items))
+        .where(
+            TransferJob.id == job_id,
+            TransferJob.user_id == user_id
+        )
+    )
+    job = result.scalar_one_or_none()
+
+    if not job:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Transfer job not found"
+        )
+
+    if not job.items:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No items to transfer. Run /analyze first."
+        )
+
+    # Get destination account for conflict checking
+    dest_result = await db.execute(
+        select(ConnectedAccount).where(
+            ConnectedAccount.user_id == user_id,
+            ConnectedAccount.provider == job.dest_provider
+        )
+    )
+    dest_account = dest_result.scalar_one_or_none()
+
+    if not dest_account:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Destination account not connected: {job.dest_provider}"
+        )
+
+    # Analyze each item
+    files_to_transfer = []
+    folders_to_create = set()
+    total_size = 0
+    conflict_count = 0
+
+    dest_folder_id = job.dest_folder_id or "root"
+    config = job.config or {}
+    conflict_strategy = config.get("conflict_strategy", "ask")
+
+    for item in job.items:
+        # Check for conflicts
+        has_conflict = await ConflictDetectionService.check_conflict(
+            dest_account, item.dest_path, dest_folder_id, case_insensitive=False
+        )
+
+        # Determine conflict resolution
+        conflict_resolution = None
+        if has_conflict:
+            conflict_count += 1
+            if conflict_strategy == "skip_all":
+                conflict_resolution = "skip"
+            elif conflict_strategy == "rename_all":
+                conflict_resolution = "rename"
+            elif conflict_strategy == "overwrite_all":
+                conflict_resolution = "overwrite"
+            else:
+                conflict_resolution = "ask"
+
+        files_to_transfer.append(
+            DryRunFileInfo(
+                source_name=item.source_path,
+                source_path=item.source_path,
+                dest_path=item.dest_path,
+                size=item.size,
+                has_conflict=has_conflict is not None,
+                conflict_resolution=conflict_resolution
+            )
+        )
+
+        total_size += item.size
+
+    # Calculate estimated time (rough estimate: 1MB per second)
+    estimated_seconds = total_size / (1024 * 1024)  # Convert bytes to MB
+    estimated_minutes = max(1, int(estimated_seconds / 60))
+
+    return DryRunResponse(
+        files_to_transfer=files_to_transfer,
+        folders_to_create=list(folders_to_create),
+        total_files=len(files_to_transfer),
+        total_size=total_size,
+        conflicts=conflict_count,
+        estimated_time_minutes=estimated_minutes
     )

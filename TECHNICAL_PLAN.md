@@ -430,15 +430,15 @@
 
 **Description:** Create endpoint to analyze selected files and return transfer summary.
 
-**Status:** `TODO`
+**Status:** `DONE`
 
 **Acceptance Criteria:**
-- [ ] `POST /api/transfers/:id/analyze` analyzes source selection
-- [ ] Applies configured filters
-- [ ] Returns: total_files, total_size, folder_count, file_type_breakdown
-- [ ] Creates TransferItem records for each file
-- [ ] Identifies potential conflicts
-- [ ] Stores analysis results on job
+- [x] `POST /api/transfers/:id/analyze` analyzes source selection
+- [x] Applies configured filters
+- [x] Returns: total_files, total_size, folder_count, file_type_breakdown
+- [x] Creates TransferItem records for each file
+- [x] Identifies potential conflicts
+- [x] Stores analysis results on job
 
 ---
 
@@ -446,15 +446,15 @@
 
 **Description:** Create endpoint to perform dry run and return detailed preview.
 
-**Status:** `TODO`
+**Status:** `DONE`
 
 **Acceptance Criteria:**
-- [ ] `POST /api/transfers/:id/dry-run` performs dry run analysis
-- [ ] Returns list of files that would be transferred
-- [ ] Returns list of detected conflicts with details
-- [ ] Returns folder structure that would be created
-- [ ] Does not modify any files
-- [ ] Returns estimated transfer time (based on size)
+- [x] `POST /api/transfers/:id/dry-run` performs dry run analysis
+- [x] Returns list of files that would be transferred
+- [x] Returns list of detected conflicts with details
+- [x] Returns folder structure that would be created
+- [x] Does not modify any files
+- [x] Returns estimated transfer time (based on size)
 
 ---
 
