@@ -4,14 +4,19 @@ Test fixtures for pytest.
 
 import pytest
 import asyncio
+from fastapi.testclient import TestClient
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.pool import NullPool
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy import create_engine
 
-from app.core.database import Base
+from app.core.database import Base, get_db
+from app.main import app
 
 
 # Database URL for testing (in-memory SQLite)
 TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
+TEST_DATABASE_URL_SYNC = "sqlite:///:memory:"
 
 
 @pytest.fixture(scope="session")
@@ -51,3 +56,34 @@ async def db():
         await conn.run_sync(Base.metadata.drop_all)
 
     await engine.dispose()
+
+
+@pytest.fixture
+def db_session():
+    """Create a synchronous database session for TestClient."""
+    # Create sync engine for TestClient
+    engine = create_engine(TEST_DATABASE_URL_SYNC)
+    Base.metadata.create_all(engine)
+
+    SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
+    session = SessionLocal()
+
+    yield session
+
+    session.close()
+    Base.metadata.drop_all(engine)
+
+
+@pytest.fixture
+def client(db_session):
+    """Create a test client with overridden database dependency."""
+    def override_get_db():
+        try:
+            yield db_session
+        finally:
+            pass
+
+    app.dependency_overrides[get_db] = override_get_db
+    client = TestClient(app)
+    yield client
+    app.dependency_overrides.clear()

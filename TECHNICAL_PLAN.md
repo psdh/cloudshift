@@ -1024,14 +1024,14 @@
 
 **Description:** Write integration tests for API endpoints.
 
-**Status:** `TODO`
+**Status:** `DONE`
 
 **Acceptance Criteria:**
-- [ ] Tests for complete auth flow
-- [ ] Tests for transfer CRUD operations
-- [ ] Tests for OAuth callback handling
-- [ ] Uses test database
-- [ ] Runs in CI pipeline
+- [x] Tests for complete auth flow
+- [x] Tests for transfer CRUD operations
+- [x] Tests for OAuth callback handling
+- [x] Uses test database
+- [x] Runs in CI pipeline
 
 ---
 
