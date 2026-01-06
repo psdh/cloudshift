@@ -180,14 +180,14 @@
 
 **Description:** Implement authentication context and route protection in Next.js.
 
-**Status:** `TODO`
+**Status:** `DONE`
 
 **Acceptance Criteria:**
-- [ ] Auth context provides user state and auth methods
-- [ ] Auto token refresh before expiration
-- [ ] Protected route wrapper redirects to login if unauthenticated
-- [ ] Logout functionality clears tokens
-- [ ] Persists auth state across page refreshes
+- [x] Auth context provides user state and auth methods
+- [x] Auto token refresh before expiration
+- [x] Protected route wrapper redirects to login if unauthenticated
+- [x] Logout functionality clears tokens
+- [x] Persists auth state across page refreshes
 
 ---
 

@@ -32,6 +32,12 @@ export const authService = {
     return apiClient.post<AuthResponse>('/api/auth/login', data);
   },
 
+  async refreshToken(refreshToken: string): Promise<AuthResponse> {
+    return apiClient.post<AuthResponse>('/api/auth/refresh', {
+      refresh_token: refreshToken,
+    });
+  },
+
   storeTokens(accessToken: string, refreshToken: string): void {
     localStorage.setItem('access_token', accessToken);
     localStorage.setItem('refresh_token', refreshToken);

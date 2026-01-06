@@ -1,16 +1,36 @@
+'use client';
+
 import React from "react";
+import Link from "next/link";
+import { useAuth } from "@/contexts/AuthContext";
+import { authService } from "@/lib/auth";
 
 interface LayoutProps {
   children: React.ReactNode;
 }
 
 export default function Layout({ children }: LayoutProps) {
+  const { logout } = useAuth();
+  const isAuthenticated = typeof window !== 'undefined' && authService.getAccessToken();
+
   return (
     <div className="min-h-screen flex flex-col">
       <header className="bg-blue-600 text-white shadow-md">
-        <div className="container mx-auto px-4 py-4">
-          <h1 className="text-2xl font-bold">CloudShift</h1>
-          <p className="text-sm text-blue-100">Cloud File Migration Made Easy</p>
+        <div className="container mx-auto px-4 py-4 flex justify-between items-center">
+          <div>
+            <Link href={isAuthenticated ? "/dashboard" : "/"}>
+              <h1 className="text-2xl font-bold cursor-pointer">CloudShift</h1>
+            </Link>
+            <p className="text-sm text-blue-100">Cloud File Migration Made Easy</p>
+          </div>
+          {isAuthenticated && (
+            <button
+              onClick={logout}
+              className="bg-blue-700 hover:bg-blue-800 px-4 py-2 rounded transition-colors"
+            >
+              Logout
+            </button>
+          )}
         </div>
       </header>
 
