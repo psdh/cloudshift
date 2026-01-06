@@ -561,14 +561,14 @@
 
 **Description:** Implement conflict detection before each file upload.
 
-**Status:** `TODO`
+**Status:** `DONE`
 
 **Acceptance Criteria:**
-- [ ] Checks destination for existing file before upload
-- [ ] Creates ConflictRecord if conflict detected
-- [ ] Pauses job if conflict_strategy is 'ask'
-- [ ] Applies automatic resolution if strategy is skip/rename/overwrite_all
-- [ ] Logs conflict and resolution in audit
+- [x] Checks destination for existing file before upload
+- [x] Creates ConflictRecord if conflict detected
+- [x] Pauses job if conflict_strategy is 'ask'
+- [x] Applies automatic resolution if strategy is skip/rename/overwrite_all
+- [x] Logs conflict and resolution in audit
 
 ---
 

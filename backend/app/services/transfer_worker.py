@@ -11,12 +11,15 @@ from typing import Optional, AsyncIterator
 
 from app.core.celery_app import celery_app
 from app.core.database import get_db
-from app.models.transfer import TransferItem, TransferJob, JobStatus
+from app.models.transfer import TransferItem, TransferJob, JobStatus, ConflictRecord, ConflictResolution
 from app.models.connected_account import ConnectedAccount
 from app.services.onedrive import OneDriveService
 from app.services.google_drive import GoogleDriveService
 from app.services.s3 import S3Service
 from app.services.progress_tracker import progress_tracker
+from app.services.conflict import ConflictDetectionService
+from app.services.audit import AuditService
+from app.models.audit_log import AuditAction
 from sqlalchemy import select
 
 logger = logging.getLogger(__name__)
@@ -165,8 +168,130 @@ def transfer_single_file(self, item_id: int) -> dict:
 
                 logger.info(f"S3 upload verified, checksum: {s3_checksum}")
 
-                # Step 3: Upload to Google Drive
+                # Step 3: Check for conflicts at destination
                 dest_folder_id = job.dest_folder_id or "root"
+                config = job.config or {}
+                conflict_strategy = config.get("conflict_strategy", "ask")
+
+                existing_file = await ConflictDetectionService.check_conflict(
+                    dest_account, item.dest_path, dest_folder_id, case_insensitive=False
+                )
+
+                if existing_file:
+                    logger.info(f"Conflict detected for {item.dest_path}, strategy: {conflict_strategy}")
+
+                    # Create conflict record
+                    conflict_record = ConflictRecord(
+                        job_id=job.id,
+                        item_id=item.id,
+                        resolution=None
+                    )
+                    db.add(conflict_record)
+                    await db.commit()
+
+                    # Log conflict detection
+                    await AuditService.log_action(
+                        db=db,
+                        action=AuditAction.TRANSFER_CONFLICT_DETECTED,
+                        user_id=job.user_id,
+                        resource_type="transfer_item",
+                        resource_id=str(item.id),
+                        details={
+                            "job_id": job.id,
+                            "file_name": item.dest_path,
+                            "conflict_strategy": conflict_strategy,
+                            "existing_file_id": existing_file.id
+                        }
+                    )
+
+                    # Handle conflict based on strategy
+                    if conflict_strategy == "ask":
+                        # Pause the item and job, wait for user resolution
+                        item.status = JobStatus.PAUSED
+                        job.status = JobStatus.PAUSED
+                        await db.commit()
+
+                        logger.info(f"Item {item_id} paused due to conflict, awaiting user resolution")
+                        return {
+                            "status": "paused",
+                            "item_id": item_id,
+                            "reason": "conflict_requires_resolution",
+                            "conflict_id": conflict_record.id
+                        }
+
+                    elif conflict_strategy == "skip_all":
+                        # Skip this file
+                        item.status = JobStatus.COMPLETED
+                        item.completed_at = datetime.utcnow()
+                        conflict_record.resolution = ConflictResolution.SKIP
+                        conflict_record.resolved_at = datetime.utcnow()
+                        await db.commit()
+
+                        # Log resolution
+                        await AuditService.log_action(
+                            db=db,
+                            action=AuditAction.TRANSFER_CONFLICT_RESOLVED,
+                            user_id=job.user_id,
+                            resource_type="transfer_item",
+                            resource_id=str(item.id),
+                            details={"resolution": "skip", "file_name": item.dest_path}
+                        )
+
+                        # Clean up S3 file
+                        await s3_service.delete_file(s3_key)
+
+                        logger.info(f"Skipped file {item.dest_path} due to conflict")
+                        return {
+                            "status": "skipped",
+                            "item_id": item_id,
+                            "reason": "conflict_skip"
+                        }
+
+                    elif conflict_strategy == "rename_all":
+                        # Generate new name
+                        existing_files = await GoogleDriveService.list_folder(dest_account, dest_folder_id)
+                        existing_names = [f.name for f in existing_files if f.type == "file"]
+                        new_name = ConflictDetectionService.generate_rename(item.dest_path, existing_names)
+                        item.dest_path = new_name
+                        conflict_record.resolution = ConflictResolution.RENAME
+                        conflict_record.resolved_at = datetime.utcnow()
+                        await db.commit()
+
+                        # Log resolution
+                        await AuditService.log_action(
+                            db=db,
+                            action=AuditAction.TRANSFER_CONFLICT_RESOLVED,
+                            user_id=job.user_id,
+                            resource_type="transfer_item",
+                            resource_id=str(item.id),
+                            details={
+                                "resolution": "rename",
+                                "original_name": item.source_path,
+                                "new_name": new_name
+                            }
+                        )
+
+                        logger.info(f"Renamed file from {item.source_path} to {new_name}")
+
+                    elif conflict_strategy == "overwrite_all":
+                        # Will overwrite - no special handling needed, just log
+                        conflict_record.resolution = ConflictResolution.OVERWRITE
+                        conflict_record.resolved_at = datetime.utcnow()
+                        await db.commit()
+
+                        # Log resolution
+                        await AuditService.log_action(
+                            db=db,
+                            action=AuditAction.TRANSFER_CONFLICT_RESOLVED,
+                            user_id=job.user_id,
+                            resource_type="transfer_item",
+                            resource_id=str(item.id),
+                            details={"resolution": "overwrite", "file_name": item.dest_path}
+                        )
+
+                        logger.info(f"Will overwrite existing file {item.dest_path}")
+
+                # Step 4: Upload to Google Drive
                 logger.info(f"Uploading to Google Drive: {item.dest_path}")
 
                 # Convert bytes to async iterator for Google Drive upload
@@ -187,7 +312,7 @@ def transfer_single_file(self, item_id: int) -> dict:
 
                 logger.info(f"Uploaded to Google Drive, file ID: {uploaded_file.id}")
 
-                # Step 4: Delete S3 file after successful upload
+                # Step 5: Delete S3 file after successful upload
                 logger.info(f"Deleting S3 file: {s3_key}")
                 await s3_service.delete_file(s3_key)
 
