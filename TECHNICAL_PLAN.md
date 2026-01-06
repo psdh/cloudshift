@@ -847,14 +847,14 @@
 
 **Description:** Create UI for configuring transfer filters.
 
-**Status:** `TODO`
+**Status:** `DONE`
 
 **Acceptance Criteria:**
-- [ ] File type filter (checkboxes or multi-select)
-- [ ] Date range filter (from/to date pickers)
-- [ ] Folder include/exclude patterns (text input)
-- [ ] Preview updates as filters change
-- [ ] Clear filters option
+- [x] File type filter (checkboxes or multi-select)
+- [x] Date range filter (from/to date pickers)
+- [x] Folder include/exclude patterns (text input)
+- [x] Preview updates as filters change
+- [x] Clear filters option
 
 ---
 
