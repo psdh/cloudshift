@@ -42,6 +42,10 @@ export default function TransferDetailPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [retrying, setRetrying] = useState(false);
+  const [showRescheduleModal, setShowRescheduleModal] = useState(false);
+  const [rescheduleDate, setRescheduleDate] = useState('');
+  const [rescheduleTime, setRescheduleTime] = useState('');
+  const [rescheduling, setRescheduling] = useState(false);
 
   // Format date
   const formatDate = (dateString: string): string => {
@@ -153,6 +157,70 @@ export default function TransferDetailPage() {
       alert(`Failed to retry: ${err.message}`);
     } finally {
       setRetrying(false);
+    }
+  };
+
+  // Handle reschedule
+  const handleReschedule = async () => {
+    if (!rescheduleDate || !rescheduleTime) {
+      alert('Please select both date and time');
+      return;
+    }
+
+    setRescheduling(true);
+    try {
+      const token = localStorage.getItem('access_token');
+      const scheduledDateTime = new Date(`${rescheduleDate}T${rescheduleTime}`);
+
+      const response = await fetch(`http://localhost:8000/api/transfers/${jobId}/schedule`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          scheduled_for: scheduledDateTime.toISOString()
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to reschedule transfer');
+      }
+
+      // Refresh job details
+      await fetchJobDetails();
+      setShowRescheduleModal(false);
+      setRescheduleDate('');
+      setRescheduleTime('');
+    } catch (err: any) {
+      alert(`Failed to reschedule: ${err.message}`);
+    } finally {
+      setRescheduling(false);
+    }
+  };
+
+  // Cancel scheduled transfer
+  const handleCancelScheduled = async () => {
+    if (!confirm('Cancel this scheduled transfer?')) {
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem('access_token');
+      const response = await fetch(`http://localhost:8000/api/transfers/${jobId}/cancel`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to cancel transfer');
+      }
+
+      router.push('/dashboard?message=Transfer cancelled');
+    } catch (err: any) {
+      alert(`Failed to cancel: ${err.message}`);
     }
   };
 
@@ -272,6 +340,22 @@ export default function TransferDetailPage() {
               >
                 Download Report
               </button>
+              {job.status === 'scheduled' && (
+                <>
+                  <button
+                    onClick={() => setShowRescheduleModal(true)}
+                    className="px-4 py-2 border border-blue-600 text-blue-600 rounded-lg hover:bg-blue-50 font-medium transition-colors"
+                  >
+                    Reschedule
+                  </button>
+                  <button
+                    onClick={handleCancelScheduled}
+                    className="px-4 py-2 border border-red-600 text-red-600 rounded-lg hover:bg-red-50 font-medium transition-colors"
+                  >
+                    Cancel Schedule
+                  </button>
+                </>
+              )}
               {job.status === 'running' && (
                 <button
                   onClick={() => router.push(`/transfers/${jobId}/progress`)}
@@ -471,6 +555,77 @@ export default function TransferDetailPage() {
               </div>
             </div>
           </div>
+
+          {/* Reschedule Modal */}
+          {showRescheduleModal && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+              <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
+                <div className="px-6 py-4 border-b border-gray-200">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-lg font-semibold text-gray-900">Reschedule Transfer</h3>
+                    <button
+                      onClick={() => setShowRescheduleModal(false)}
+                      className="text-gray-400 hover:text-gray-600"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+                <div className="px-6 py-4">
+                  <p className="text-sm text-gray-600 mb-4">
+                    Choose a new date and time for this transfer
+                  </p>
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Date</label>
+                      <input
+                        type="date"
+                        value={rescheduleDate}
+                        onChange={(e) => setRescheduleDate(e.target.value)}
+                        min={new Date().toISOString().split('T')[0]}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Time</label>
+                      <input
+                        type="time"
+                        value={rescheduleTime}
+                        onChange={(e) => setRescheduleTime(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                    {job.scheduled_for && (
+                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                        <p className="text-sm text-blue-800">
+                          <span className="font-medium">Currently scheduled for:</span><br />
+                          {new Date(job.scheduled_for).toLocaleString()}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <div className="px-6 py-4 border-t border-gray-200 flex justify-end gap-3">
+                  <button
+                    onClick={() => setShowRescheduleModal(false)}
+                    disabled={rescheduling}
+                    className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium transition-colors disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleReschedule}
+                    disabled={rescheduling || !rescheduleDate || !rescheduleTime}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium transition-colors disabled:opacity-50"
+                  >
+                    {rescheduling ? 'Rescheduling...' : 'Reschedule'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </Layout>
     </ProtectedRoute>

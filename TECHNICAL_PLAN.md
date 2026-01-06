@@ -640,14 +640,14 @@
 
 **Description:** Create UI for scheduling and managing scheduled transfers.
 
-**Status:** `TODO`
+**Status:** `DONE`
 
 **Acceptance Criteria:**
-- [ ] Date/time picker in transfer configuration
-- [ ] Shows scheduled time in user's timezone
-- [ ] "Start Now" vs "Schedule" options
-- [ ] Scheduled transfers visible in dashboard with countdown
-- [ ] Ability to cancel or reschedule
+- [x] Date/time picker in transfer configuration
+- [x] Shows scheduled time in user's timezone
+- [x] "Start Now" vs "Schedule" options
+- [x] Scheduled transfers visible in dashboard with countdown
+- [x] Ability to cancel or reschedule
 
 ---
 
