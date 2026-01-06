@@ -244,15 +244,15 @@
 
 **Description:** Create service to automatically refresh OAuth tokens before expiration.
 
-**Status:** `TODO`
+**Status:** `DONE`
 
 **Acceptance Criteria:**
-- [ ] Token refresh function for OneDrive tokens
-- [ ] Token refresh function for Google tokens
-- [ ] Automatically called when token is within 5 minutes of expiry
-- [ ] Updates stored tokens on successful refresh
-- [ ] Logs warning if refresh fails
-- [ ] Returns valid token or raises exception
+- [x] Token refresh function for OneDrive tokens
+- [x] Token refresh function for Google tokens
+- [x] Automatically called when token is within 5 minutes of expiry
+- [x] Updates stored tokens on successful refresh
+- [x] Logs warning if refresh fails
+- [x] Returns valid token or raises exception
 
 ---
 

@@ -1,5 +1,6 @@
 import secrets
-from datetime import datetime, timedelta
+import logging
+from datetime import datetime, timedelta, timezone
 from typing import Optional, Dict
 from urllib.parse import urlencode
 import httpx
@@ -10,6 +11,8 @@ from sqlalchemy import select
 from app.core.config import settings
 from app.models.connected_account import ConnectedAccount, CloudProvider
 from app.services.encryption import EncryptionService
+
+logger = logging.getLogger(__name__)
 
 
 class OAuthService:
@@ -256,3 +259,146 @@ class OAuthService:
             )
             response.raise_for_status()
             return response.json()
+
+    @staticmethod
+    async def refresh_onedrive_token(refresh_token: str) -> Dict[str, any]:
+        """
+        Refresh OneDrive access token using refresh token.
+
+        Args:
+            refresh_token: Valid OneDrive refresh token
+
+        Returns:
+            Dict with 'access_token', 'refresh_token', 'expires_in'
+
+        Raises:
+            httpx.HTTPError: If token refresh fails
+        """
+        data = {
+            "client_id": settings.ONEDRIVE_CLIENT_ID,
+            "client_secret": settings.ONEDRIVE_CLIENT_SECRET,
+            "refresh_token": refresh_token,
+            "grant_type": "refresh_token",
+        }
+
+        async with httpx.AsyncClient() as client:
+            response = await client.post(OAuthService.ONEDRIVE_TOKEN_URL, data=data)
+            response.raise_for_status()
+            return response.json()
+
+    @staticmethod
+    async def refresh_google_token(refresh_token: str) -> Dict[str, any]:
+        """
+        Refresh Google access token using refresh token.
+
+        Args:
+            refresh_token: Valid Google refresh token
+
+        Returns:
+            Dict with 'access_token', 'expires_in' (may include new 'refresh_token')
+
+        Raises:
+            httpx.HTTPError: If token refresh fails
+        """
+        data = {
+            "client_id": settings.GOOGLE_CLIENT_ID,
+            "client_secret": settings.GOOGLE_CLIENT_SECRET,
+            "refresh_token": refresh_token,
+            "grant_type": "refresh_token",
+        }
+
+        async with httpx.AsyncClient() as client:
+            response = await client.post(OAuthService.GOOGLE_TOKEN_URL, data=data)
+            response.raise_for_status()
+            return response.json()
+
+    @staticmethod
+    def is_token_expired(token_expiry: Optional[datetime], buffer_minutes: int = 5) -> bool:
+        """
+        Check if token is expired or will expire within buffer time.
+
+        Args:
+            token_expiry: Token expiration datetime
+            buffer_minutes: Minutes before expiry to consider token expired (default 5)
+
+        Returns:
+            bool: True if token is expired or will expire soon
+        """
+        if not token_expiry:
+            return True
+
+        # Make token_expiry timezone-aware if it isn't
+        if token_expiry.tzinfo is None:
+            token_expiry = token_expiry.replace(tzinfo=timezone.utc)
+
+        now = datetime.now(timezone.utc)
+        buffer = timedelta(minutes=buffer_minutes)
+        return (token_expiry - now) <= buffer
+
+    @staticmethod
+    async def get_valid_access_token(
+        db: AsyncSession,
+        account: ConnectedAccount
+    ) -> str:
+        """
+        Get a valid access token, automatically refreshing if needed.
+
+        Args:
+            db: Database session
+            account: ConnectedAccount instance
+
+        Returns:
+            str: Valid access token (decrypted)
+
+        Raises:
+            Exception: If token refresh fails or no refresh token available
+        """
+        # Check if token needs refresh
+        if not OAuthService.is_token_expired(account.token_expiry):
+            # Token is still valid, decrypt and return
+            access_token = EncryptionService.decrypt(account.access_token)
+            if access_token:
+                return access_token
+
+        # Token expired or invalid, need to refresh
+        if not account.refresh_token:
+            logger.error(f"Account {account.id} has no refresh token, cannot refresh")
+            raise Exception("No refresh token available")
+
+        # Decrypt refresh token
+        refresh_token = EncryptionService.decrypt(account.refresh_token)
+        if not refresh_token:
+            logger.error(f"Failed to decrypt refresh token for account {account.id}")
+            raise Exception("Failed to decrypt refresh token")
+
+        try:
+            # Refresh based on provider
+            if account.provider == CloudProvider.ONEDRIVE:
+                token_response = await OAuthService.refresh_onedrive_token(refresh_token)
+            elif account.provider == CloudProvider.GOOGLE_DRIVE:
+                token_response = await OAuthService.refresh_google_token(refresh_token)
+            else:
+                raise Exception(f"Unknown provider: {account.provider}")
+
+            # Extract new tokens
+            new_access_token = token_response.get("access_token")
+            new_refresh_token = token_response.get("refresh_token", refresh_token)  # Some APIs don't return new refresh token
+            expires_in = token_response.get("expires_in", 3600)
+
+            if not new_access_token:
+                raise Exception("No access token in refresh response")
+
+            # Update account with new tokens
+            account.access_token = EncryptionService.encrypt(new_access_token)
+            account.refresh_token = EncryptionService.encrypt(new_refresh_token)
+            account.token_expiry = datetime.now(timezone.utc) + timedelta(seconds=expires_in)
+
+            await db.commit()
+            await db.refresh(account)
+
+            logger.info(f"Successfully refreshed token for account {account.id}")
+            return new_access_token
+
+        except httpx.HTTPError as e:
+            logger.warning(f"Failed to refresh token for account {account.id}: {str(e)}")
+            raise Exception(f"Token refresh failed: {str(e)}")
