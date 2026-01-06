@@ -368,13 +368,13 @@
 
 **Description:** Implement service to check if file already exists at destination.
 
-**Status:** `TODO`
+**Status:** `DONE`
 
 **Acceptance Criteria:**
-- [ ] Function to check if file exists by name in destination folder
-- [ ] Returns existing file metadata if found
-- [ ] Compares by name (case-insensitive option)
-- [ ] Used before upload to detect conflicts
+- [x] Function to check if file exists by name in destination folder
+- [x] Returns existing file metadata if found
+- [x] Compares by name (case-insensitive option)
+- [x] Used before upload to detect conflicts
 
 ---
 
