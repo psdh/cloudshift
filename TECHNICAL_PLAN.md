@@ -674,15 +674,15 @@
 
 **Description:** Implement SMS sending service via Twilio.
 
-**Status:** `TODO`
+**Status:** `DONE`
 
 **Acceptance Criteria:**
-- [ ] Twilio client configured with credentials
-- [ ] SMS template for transfer completion
-- [ ] SMS template for transfer failure
-- [ ] Respects user's SMS notification preference
-- [ ] Validates phone number format
-- [ ] Handles send failures gracefully
+- [x] Twilio client configured with credentials
+- [x] SMS template for transfer completion
+- [x] SMS template for transfer failure
+- [x] Respects user's SMS notification preference
+- [x] Validates phone number format
+- [x] Handles send failures gracefully
 
 ---
 

@@ -14,6 +14,7 @@ from app.core.database import get_async_session
 from app.models.transfer import TransferJob, TransferItem, JobStatus
 from app.models.user import User
 from app.services.email import email_service
+from app.services.sms import sms_service
 from app.services.audit import AuditService
 
 audit_service = AuditService()
@@ -83,12 +84,12 @@ async def _send_job_notification_async(job_id: int):
                     "error": "User not found"
                 }
 
-            # Check if user wants email notifications
-            if not user.email_notifications:
-                logger.info(f"User {user.id} has email notifications disabled, skipping")
+            # Check if user wants any notifications
+            if not user.email_notifications and not user.sms_notifications:
+                logger.info(f"User {user.id} has all notifications disabled, skipping")
                 return {
                     "success": True,
-                    "skipped": "email_notifications_disabled"
+                    "skipped": "notifications_disabled"
                 }
 
             # Fetch transfer items for stats
@@ -104,21 +105,35 @@ async def _send_job_notification_async(job_id: int):
 
             # Determine notification type based on job status
             email_sent = False
+            sms_sent = False
 
             if job.status == JobStatus.COMPLETED:
-                # Send completion email
-                email_sent = await email_service.send_transfer_completion_email(
-                    to_email=user.email,
-                    job_id=job.id,
-                    total_files=total_files,
-                    total_size=total_size,
-                    files_transferred=files_completed,
-                    files_failed=files_failed,
-                    started_at=job.started_at or job.created_at,
-                    completed_at=job.completed_at or datetime.utcnow(),
-                    source_provider=job.source_provider,
-                    dest_provider=job.dest_provider
-                )
+                # Send completion email if enabled
+                if user.email_notifications:
+                    email_sent = await email_service.send_transfer_completion_email(
+                        to_email=user.email,
+                        job_id=job.id,
+                        total_files=total_files,
+                        total_size=total_size,
+                        files_transferred=files_completed,
+                        files_failed=files_failed,
+                        started_at=job.started_at or job.created_at,
+                        completed_at=job.completed_at or datetime.utcnow(),
+                        source_provider=job.source_provider,
+                        dest_provider=job.dest_provider
+                    )
+
+                # Send completion SMS if enabled
+                if user.sms_notifications and user.phone_number:
+                    sms_sent = await sms_service.send_transfer_completion_sms(
+                        to_phone=user.phone_number,
+                        job_id=job.id,
+                        total_files=total_files,
+                        files_transferred=files_completed,
+                        files_failed=files_failed,
+                        source_provider=job.source_provider,
+                        dest_provider=job.dest_provider
+                    )
 
                 notification_type = "transfer_completed"
 
@@ -130,17 +145,28 @@ async def _send_job_notification_async(job_id: int):
                         error_message = item.error_message
                         break
 
-                # Send failure email
-                email_sent = await email_service.send_transfer_failure_email(
-                    to_email=user.email,
-                    job_id=job.id,
-                    total_files=total_files,
-                    files_attempted=files_completed + files_failed,
-                    files_failed=files_failed,
-                    error_message=error_message,
-                    source_provider=job.source_provider,
-                    dest_provider=job.dest_provider
-                )
+                # Send failure email if enabled
+                if user.email_notifications:
+                    email_sent = await email_service.send_transfer_failure_email(
+                        to_email=user.email,
+                        job_id=job.id,
+                        total_files=total_files,
+                        files_attempted=files_completed + files_failed,
+                        files_failed=files_failed,
+                        error_message=error_message,
+                        source_provider=job.source_provider,
+                        dest_provider=job.dest_provider
+                    )
+
+                # Send failure SMS if enabled
+                if user.sms_notifications and user.phone_number:
+                    sms_sent = await sms_service.send_transfer_failure_sms(
+                        to_phone=user.phone_number,
+                        job_id=job.id,
+                        error_reason=error_message,
+                        source_provider=job.source_provider,
+                        dest_provider=job.dest_provider
+                    )
 
                 notification_type = "transfer_failed"
 
@@ -154,7 +180,13 @@ async def _send_job_notification_async(job_id: int):
                 }
 
             # Log notification in audit log
-            if email_sent:
+            if email_sent or sms_sent:
+                notification_channels = []
+                if email_sent:
+                    notification_channels.append("email")
+                if sms_sent:
+                    notification_channels.append("sms")
+
                 await audit_service.log_action(
                     db=db,
                     user_id=user.id,
@@ -162,8 +194,9 @@ async def _send_job_notification_async(job_id: int):
                     resource_type="transfer_job",
                     resource_id=job.id,
                     details={
-                        "notification_type": "email",
-                        "recipient": user.email,
+                        "notification_channels": notification_channels,
+                        "email": user.email if email_sent else None,
+                        "phone": user.phone_number if sms_sent else None,
                         "files_completed": files_completed,
                         "files_failed": files_failed
                     }
@@ -171,7 +204,7 @@ async def _send_job_notification_async(job_id: int):
 
             logger.info(
                 f"Notification sent for job {job_id}: "
-                f"email={email_sent}, type={notification_type}"
+                f"email={email_sent}, sms={sms_sent}, type={notification_type}"
             )
 
             return {
@@ -179,7 +212,9 @@ async def _send_job_notification_async(job_id: int):
                 "job_id": job_id,
                 "notification_type": notification_type,
                 "email_sent": email_sent,
-                "recipient": user.email
+                "sms_sent": sms_sent,
+                "recipient_email": user.email if email_sent else None,
+                "recipient_phone": user.phone_number if sms_sent else None
             }
 
         except Exception as e:
