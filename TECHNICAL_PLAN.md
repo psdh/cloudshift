@@ -1054,14 +1054,14 @@
 
 **Description:** Write E2E tests for critical user flows.
 
-**Status:** `TODO`
+**Status:** `DONE`
 
 **Acceptance Criteria:**
-- [ ] Test: Register → Login → Connect accounts
-- [ ] Test: Create transfer → Configure → Start
-- [ ] Test: View progress → Completion
-- [ ] Uses Playwright or Cypress
-- [ ] Runs against staging environment
+- [x] Test: Register → Login → Connect accounts
+- [x] Test: Create transfer → Configure → Start
+- [x] Test: View progress → Completion
+- [x] Uses Playwright or Cypress
+- [x] Runs against staging environment
 
 ---
 
