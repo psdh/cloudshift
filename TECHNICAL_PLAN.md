@@ -464,16 +464,16 @@
 
 **Description:** Implement Celery task to transfer a single file through the pipeline.
 
-**Status:** `TODO`
+**Status:** `DONE`
 
 **Acceptance Criteria:**
-- [ ] Downloads file from OneDrive to memory/temp stream
-- [ ] Uploads to S3 intermediate bucket with job_id prefix
-- [ ] Downloads from S3 and uploads to Google Drive
-- [ ] Verifies file size matches at each step
-- [ ] Deletes S3 file after successful Google Drive upload
-- [ ] Updates TransferItem status and timestamps
-- [ ] Handles errors and updates item with error message
+- [x] Downloads file from OneDrive to memory/temp stream
+- [x] Uploads to S3 intermediate bucket with job_id prefix
+- [x] Downloads from S3 and uploads to Google Drive
+- [x] Verifies file size matches at each step
+- [x] Deletes S3 file after successful Google Drive upload
+- [x] Updates TransferItem status and timestamps
+- [x] Handles errors and updates item with error message
 
 ---
 
@@ -481,14 +481,14 @@
 
 **Description:** Add checksum verification to ensure exactly-once delivery.
 
-**Status:** `TODO`
+**Status:** `DONE`
 
 **Acceptance Criteria:**
-- [ ] Calculates MD5/SHA256 hash during OneDrive download
-- [ ] Verifies hash after S3 upload
-- [ ] Verifies hash after Google Drive upload (if API supports)
-- [ ] Fails transfer if checksums don't match
-- [ ] Logs checksum values for audit
+- [x] Calculates MD5/SHA256 hash during OneDrive download
+- [x] Verifies hash after S3 upload
+- [x] Verifies hash after Google Drive upload (if API supports)
+- [x] Fails transfer if checksums don't match
+- [x] Logs checksum values for audit
 
 ---
 
@@ -496,16 +496,16 @@
 
 **Description:** Implement Celery task to orchestrate entire transfer job.
 
-**Status:** `TODO`
+**Status:** `DONE`
 
 **Acceptance Criteria:**
-- [ ] Creates folder structure in destination first
-- [ ] Queues individual file transfer tasks
-- [ ] Limits concurrent transfers (configurable, default 5)
-- [ ] Tracks overall job progress
-- [ ] Handles job cancellation
-- [ ] Updates job status: pending → running → completed/failed
-- [ ] Triggers notification on completion
+- [x] Creates folder structure in destination first
+- [x] Queues individual file transfer tasks
+- [x] Limits concurrent transfers (configurable, default 5)
+- [x] Tracks overall job progress
+- [x] Handles job cancellation
+- [x] Updates job status: pending → running → completed/failed
+- [x] Triggers notification on completion
 
 ---
 
