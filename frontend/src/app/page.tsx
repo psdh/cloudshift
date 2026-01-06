@@ -1,4 +1,5 @@
 import Layout from "@/components/Layout";
+import Link from "next/link";
 
 export default function Home() {
   return (
@@ -9,12 +10,18 @@ export default function Home() {
           Seamlessly migrate your files from OneDrive to Google Drive
         </p>
         <div className="flex gap-4 justify-center">
-          <button className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors">
+          <Link
+            href="/register"
+            className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors"
+          >
             Get Started
-          </button>
-          <button className="border-2 border-blue-600 text-blue-600 hover:bg-blue-50 font-semibold py-3 px-6 rounded-lg transition-colors">
-            Learn More
-          </button>
+          </Link>
+          <Link
+            href="/login"
+            className="border-2 border-blue-600 text-blue-600 hover:bg-blue-50 font-semibold py-3 px-6 rounded-lg transition-colors"
+          >
+            Sign In
+          </Link>
         </div>
       </div>
     </Layout>

@@ -164,15 +164,15 @@
 
 **Description:** Create registration and login pages in Next.js with form validation.
 
-**Status:** `TODO`
+**Status:** `DONE`
 
 **Acceptance Criteria:**
-- [ ] `/register` page with email, password, confirm password fields
-- [ ] `/login` page with email, password fields
-- [ ] Client-side validation (email format, password length)
-- [ ] API integration with error handling
-- [ ] Redirect to dashboard on successful auth
-- [ ] JWT stored securely (httpOnly cookie or secure storage)
+- [x] `/register` page with email, password, confirm password fields
+- [x] `/login` page with email, password fields
+- [x] Client-side validation (email format, password length)
+- [x] API integration with error handling
+- [x] Redirect to dashboard on successful auth
+- [x] JWT stored securely (httpOnly cookie or secure storage)
 
 ---
 
