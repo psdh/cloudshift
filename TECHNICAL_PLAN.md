@@ -657,16 +657,16 @@
 
 **Description:** Implement email sending service via AWS SES for transfer notifications.
 
-**Status:** `TODO`
+**Status:** `DONE`
 
 **Acceptance Criteria:**
-- [ ] AWS SES client configured with credentials
-- [ ] SES sending domain verified
-- [ ] HTML email template for transfer completion
-- [ ] HTML email template for transfer failure
-- [ ] Includes: job summary, files transferred, duration, errors if any
-- [ ] Sends to user's registered email
-- [ ] Handles send failures gracefully
+- [x] AWS SES client configured with credentials
+- [x] SES sending domain verified
+- [x] HTML email template for transfer completion
+- [x] HTML email template for transfer failure
+- [x] Includes: job summary, files transferred, duration, errors if any
+- [x] Sends to user's registered email
+- [x] Handles send failures gracefully
 
 ---
 

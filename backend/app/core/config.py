@@ -52,7 +52,10 @@ class Settings(BaseSettings):
     TWILIO_PHONE_NUMBER: Optional[str] = None
 
     # Email (AWS SES)
-    SES_SENDER_EMAIL: Optional[str] = None
+    SES_FROM_EMAIL: Optional[str] = None
+
+    # Frontend URL (for email links)
+    FRONTEND_URL: str = "http://localhost:3000"
 
     class Config:
         env_file = ".env"
