@@ -914,15 +914,15 @@
 
 **Description:** Create detailed view of a specific transfer job.
 
-**Status:** `TODO`
+**Status:** `DONE`
 
 **Acceptance Criteria:**
-- [ ] Job metadata: dates, duration, configuration
-- [ ] File list with status (searchable)
-- [ ] Error details for failed files
-- [ ] Conflict resolutions made
-- [ ] Option to retry failed files
-- [ ] Download job report
+- [x] Job metadata: dates, duration, configuration
+- [x] File list with status (searchable)
+- [x] Error details for failed files
+- [x] Conflict resolutions made
+- [x] Option to retry failed files
+- [x] Download job report
 
 ---
 
