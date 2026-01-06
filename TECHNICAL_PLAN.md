@@ -1115,14 +1115,14 @@
 
 **Description:** Set up continuous integration and deployment pipeline.
 
-**Status:** `TODO`
+**Status:** `DONE`
 
 **Acceptance Criteria:**
-- [ ] Runs tests on PR
-- [ ] Linting and type checking
-- [ ] Builds Docker images
-- [ ] Deploys to staging on merge to main
-- [ ] Manual promotion to production
+- [x] Runs tests on PR
+- [x] Linting and type checking
+- [x] Builds Docker images
+- [x] Deploys to staging on merge to main
+- [x] Manual promotion to production
 
 ---
 

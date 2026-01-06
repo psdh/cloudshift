@@ -1,0 +1,149 @@
+name: Deploy to Staging
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy-staging:
+    name: Deploy to Staging Environment
+    runs-on: ubuntu-latest
+    environment:
+      name: staging
+      url: https://staging.cloudshift.example.com
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Build and push backend image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          file: ./backend/Dockerfile
+          push: true
+          tags: |
+            ${{ secrets.DOCKER_USERNAME }}/cloudshift-backend:staging
+            ${{ secrets.DOCKER_USERNAME }}/cloudshift-backend:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build and push frontend image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          file: ./frontend/Dockerfile
+          push: true
+          tags: |
+            ${{ secrets.DOCKER_USERNAME }}/cloudshift-frontend:staging
+            ${{ secrets.DOCKER_USERNAME }}/cloudshift-frontend:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Deploy to staging server
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.STAGING_HOST }}
+          username: ${{ secrets.STAGING_USERNAME }}
+          key: ${{ secrets.STAGING_SSH_KEY }}
+          script: |
+            cd /opt/cloudshift
+
+            # Pull latest images
+            docker pull ${{ secrets.DOCKER_USERNAME }}/cloudshift-backend:staging
+            docker pull ${{ secrets.DOCKER_USERNAME }}/cloudshift-frontend:staging
+
+            # Stop existing containers
+            docker-compose -f docker-compose.yml -f docker-compose.staging.yml down
+
+            # Start new containers
+            docker-compose -f docker-compose.yml -f docker-compose.staging.yml up -d
+
+            # Run database migrations
+            docker-compose exec -T backend alembic upgrade head
+
+            # Health check
+            sleep 10
+            curl -f http://localhost:8000/health || exit 1
+
+      - name: Notify deployment success
+        if: success()
+        uses: 8398a7/action-slack@v3
+        with:
+          status: custom
+          custom_payload: |
+            {
+              text: "✅ CloudShift staging deployment successful",
+              attachments: [{
+                color: 'good',
+                text: `Commit: ${process.env.AS_COMMIT}\nAuthor: ${process.env.AS_AUTHOR}\nBranch: ${process.env.AS_REF}`
+              }]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+      - name: Notify deployment failure
+        if: failure()
+        uses: 8398a7/action-slack@v3
+        with:
+          status: custom
+          custom_payload: |
+            {
+              text: "❌ CloudShift staging deployment failed",
+              attachments: [{
+                color: 'danger',
+                text: `Commit: ${process.env.AS_COMMIT}\nAuthor: ${process.env.AS_AUTHOR}\nBranch: ${process.env.AS_REF}`
+              }]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+  # Run smoke tests after deployment
+  smoke-tests:
+    name: Staging Smoke Tests
+    runs-on: ubuntu-latest
+    needs: deploy-staging
+    environment: staging
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install test dependencies
+        run: |
+          pip install requests pytest
+
+      - name: Run smoke tests
+        env:
+          STAGING_URL: https://staging.cloudshift.example.com
+        run: |
+          # Health check
+          response=$(curl -s -o /dev/null -w "%{http_code}" $STAGING_URL/health)
+          if [ $response -ne 200 ]; then
+            echo "Health check failed with status $response"
+            exit 1
+          fi
+
+          # API docs accessible
+          response=$(curl -s -o /dev/null -w "%{http_code}" $STAGING_URL/docs)
+          if [ $response -ne 200 ]; then
+            echo "API docs check failed with status $response"
+            exit 1
+          fi
+
+          echo "✅ All smoke tests passed"
