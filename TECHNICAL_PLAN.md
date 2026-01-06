@@ -737,14 +737,14 @@
 
 **Description:** Implement service to create audit log entries throughout the application.
 
-**Status:** `TODO`
+**Status:** `DONE`
 
 **Acceptance Criteria:**
-- [ ] Function to log action with context
-- [ ] Automatically captures IP and user agent from request
-- [ ] Async logging to not block requests
-- [ ] Captures relevant details per action type
-- [ ] Integrated at key points: auth, transfers, account management
+- [x] Function to log action with context
+- [x] Automatically captures IP and user agent from request
+- [x] Async logging to not block requests
+- [x] Captures relevant details per action type
+- [x] Integrated at key points: auth, transfers, account management
 
 ---
 

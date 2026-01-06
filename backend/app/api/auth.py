@@ -1,8 +1,9 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.services.auth import AuthService
+from app.services.audit import AuditService
 from app.schemas.user import UserRegister, UserResponse, UserLogin, TokenResponse, TokenRefresh
 from app.core.security import create_access_token, create_refresh_token, decode_token
 from sqlalchemy.exc import IntegrityError
@@ -13,6 +14,7 @@ router = APIRouter(prefix="/api/auth", tags=["authentication"])
 @router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 async def register(
     user_data: UserRegister,
+    request: Request,
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -46,12 +48,16 @@ async def register(
             detail="Email already registered",
         )
 
+    # Log registration
+    await AuditService.log_register(db, user.id, user.email, request)
+
     return UserResponse.model_validate(user)
 
 
 @router.post("/login", response_model=TokenResponse)
 async def login(
     user_data: UserLogin,
+    request: Request,
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -80,6 +86,9 @@ async def login(
     # Create tokens
     access_token = create_access_token(data={"sub": str(user.id), "email": user.email})
     refresh_token = create_refresh_token(data={"sub": str(user.id)})
+
+    # Log login
+    await AuditService.log_login(db, user.id, request, success=True)
 
     return TokenResponse(
         access_token=access_token,

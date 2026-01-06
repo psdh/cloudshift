@@ -6,6 +6,7 @@ import httpx
 from app.core.database import get_db
 from app.core.security import get_current_user_id
 from app.services.oauth import OAuthService
+from app.services.audit import AuditService
 from app.models.connected_account import CloudProvider
 from pydantic import BaseModel
 
@@ -77,6 +78,7 @@ async def onedrive_authorize(
 
 @router.get("/onedrive/callback")
 async def onedrive_callback(
+    request: Request,
     code: Optional[str] = None,
     state: Optional[str] = None,
     error: Optional[str] = None,
@@ -151,6 +153,11 @@ async def onedrive_callback(
             refresh_token=refresh_token,
             expires_in=expires_in,
             account_email=account_email
+        )
+
+        # Log account connection
+        await AuditService.log_account_connected(
+            db, user_id, "onedrive", account_email or "unknown", request
         )
 
         return {
