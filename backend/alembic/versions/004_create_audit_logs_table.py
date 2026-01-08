@@ -20,17 +20,8 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    # Create enum for audit actions
-    op.execute("""
-        CREATE TYPE auditaction AS ENUM (
-            'login', 'logout', 'register', 'token_refresh',
-            'transfer_created', 'transfer_started', 'transfer_completed',
-            'transfer_failed', 'transfer_cancelled', 'transfer_deleted',
-            'conflict_resolved',
-            'account_connected', 'account_disconnected',
-            'settings_changed', 'config_updated'
-        )
-    """)
+    # SQLAlchemy will automatically create the enum type
+    # No manual CREATE TYPE statement needed
 
     # Create audit_logs table
     op.create_table(

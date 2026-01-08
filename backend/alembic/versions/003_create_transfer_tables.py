@@ -20,23 +20,8 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    # Create enums
-    op.execute("""
-        CREATE TYPE jobstatus AS ENUM (
-            'draft', 'pending', 'running', 'paused',
-            'completed', 'failed', 'cancelled', 'scheduled'
-        )
-    """)
-    op.execute("""
-        CREATE TYPE itemstatus AS ENUM (
-            'pending', 'in_progress', 'completed', 'failed', 'skipped'
-        )
-    """)
-    op.execute("""
-        CREATE TYPE conflictresolution AS ENUM (
-            'ask', 'skip', 'rename', 'overwrite'
-        )
-    """)
+    # SQLAlchemy will automatically create the enum types
+    # No manual CREATE TYPE statements needed
 
     # Create transfer_jobs table
     op.create_table(
