@@ -5,6 +5,17 @@ import { useParams, useRouter } from 'next/navigation';
 import Layout from '@/components/Layout';
 import ProtectedRoute from '@/components/ProtectedRoute';
 
+interface TransferConfig {
+  file_types?: string[];
+  conflict_strategy?: string;
+  date_range?: {
+    start_date?: string | null;
+    end_date?: string | null;
+  } | null;
+  folder_include?: string[];
+  folder_exclude?: string[];
+}
+
 interface TransferJob {
   id: number;
   status: string;
@@ -12,7 +23,7 @@ interface TransferJob {
   dest_provider: string;
   source_folder_id: string | null;
   dest_folder_id: string | null;
-  config: Record<string, any> | null;
+  config: TransferConfig | null;
   created_at: string;
   started_at: string | null;
   completed_at: string | null;
@@ -36,7 +47,9 @@ export default function TransferDetailPage() {
   const jobId = params?.id as string;
 
   const [job, setJob] = useState<TransferJob | null>(null);
-  const [items, setItems] = useState<TransferItem[]>([]);
+  // Items are not yet returned by the detail endpoint; kept as a stable empty
+  // list until a dedicated items endpoint exists.
+  const [items] = useState<TransferItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -124,8 +137,8 @@ export default function TransferDetailPage() {
 
       const data = await response.json();
       setJob(data);
-    } catch (err: any) {
-      setError(err.message || 'Failed to fetch transfer details');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to fetch transfer details');
     } finally {
       setLoading(false);
     }
@@ -153,8 +166,8 @@ export default function TransferDetailPage() {
 
       // Redirect to progress page
       router.push(`/transfers/${jobId}/progress`);
-    } catch (err: any) {
-      alert(`Failed to retry: ${err.message}`);
+    } catch (err: unknown) {
+      alert(`Failed to retry: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
       setRetrying(false);
     }
@@ -192,8 +205,8 @@ export default function TransferDetailPage() {
       setShowRescheduleModal(false);
       setRescheduleDate('');
       setRescheduleTime('');
-    } catch (err: any) {
-      alert(`Failed to reschedule: ${err.message}`);
+    } catch (err: unknown) {
+      alert(`Failed to reschedule: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
       setRescheduling(false);
     }
@@ -219,8 +232,8 @@ export default function TransferDetailPage() {
       }
 
       router.push('/dashboard?message=Transfer cancelled');
-    } catch (err: any) {
-      alert(`Failed to cancel: ${err.message}`);
+    } catch (err: unknown) {
+      alert(`Failed to cancel: ${err instanceof Error ? err.message : String(err)}`);
     }
   };
 

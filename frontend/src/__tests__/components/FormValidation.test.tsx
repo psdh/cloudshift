@@ -6,7 +6,11 @@ import { describe, it, expect } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 
 // Mock ReviewConfirm component for testing form validation
-const MockScheduleForm = ({ onSubmit }: { onSubmit: (data: any) => void }) => {
+const MockScheduleForm = ({
+  onSubmit,
+}: {
+  onSubmit: (data: { date: string; time: string }) => void;
+}) => {
   const [date, setDate] = React.useState('');
   const [time, setTime] = React.useState('');
   const [error, setError] = React.useState('');

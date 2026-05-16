@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 
 interface OneDriveItem {
   id: string;
@@ -22,17 +22,7 @@ export default function OneDriveFileBrowser({ onSelectionChange }: OneDriveFileB
   const [loading, setLoading] = useState(true);
   const [selectAll, setSelectAll] = useState(false);
 
-  useEffect(() => {
-    fetchFolderContents(currentPath[currentPath.length - 1]);
-  }, [currentPath]);
-
-  useEffect(() => {
-    // Notify parent of selection changes
-    const selected = items.filter((item) => selectedItems.has(item.id));
-    onSelectionChange(selected);
-  }, [selectedItems, items]);
-
-  const fetchFolderContents = async (folderId: string) => {
+  const fetchFolderContents = useCallback(async (folderId: string) => {
     setLoading(true);
     try {
       const token = localStorage.getItem('access_token');
@@ -93,7 +83,20 @@ export default function OneDriveFileBrowser({ onSelectionChange }: OneDriveFileB
       console.error('Error fetching OneDrive contents:', error);
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    fetchFolderContents(currentPath[currentPath.length - 1]);
+  }, [currentPath, fetchFolderContents]);
+
+  useEffect(() => {
+    // Notify parent of selection changes
+    const selected = items.filter((item) => selectedItems.has(item.id));
+    onSelectionChange(selected);
+    // onSelectionChange is intentionally omitted: parents may pass an
+    // unstable callback and including it would cause an update loop.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedItems, items]);
 
   const handleItemClick = (item: OneDriveItem) => {
     if (item.type === 'folder') {

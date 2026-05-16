@@ -5,12 +5,6 @@ import { useRouter } from 'next/navigation';
 import Layout from '@/components/Layout';
 import ProtectedRoute from '@/components/ProtectedRoute';
 
-interface UserPreferences {
-  email_notifications: boolean;
-  sms_notifications: boolean;
-  phone_number: string | null;
-}
-
 export default function NotificationSettingsPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
@@ -50,8 +44,8 @@ export default function NotificationSettingsPage() {
       setEmailNotifications(userData.email_notifications || false);
       setSmsNotifications(userData.sms_notifications || false);
       setPhoneNumber(userData.phone_number || '');
-    } catch (err: any) {
-      setError(err.message || 'Failed to load preferences');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to load preferences');
     } finally {
       setLoading(false);
     }
@@ -132,8 +126,8 @@ export default function NotificationSettingsPage() {
 
       setSuccess('Notification preferences saved successfully!');
       setTimeout(() => setSuccess(null), 3000);
-    } catch (err: any) {
-      setError(err.message || 'Failed to save preferences');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to save preferences');
     } finally {
       setSaving(false);
     }
@@ -160,8 +154,8 @@ export default function NotificationSettingsPage() {
 
       setSuccess('Test email sent! Check your inbox.');
       setTimeout(() => setSuccess(null), 5000);
-    } catch (err: any) {
-      setError(err.message || 'Failed to send test email');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to send test email');
     } finally {
       setTestingEmail(false);
     }
@@ -201,8 +195,8 @@ export default function NotificationSettingsPage() {
 
       setSuccess('Test SMS sent! Check your phone.');
       setTimeout(() => setSuccess(null), 5000);
-    } catch (err: any) {
-      setError(err.message || 'Failed to send test SMS');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to send test SMS');
     } finally {
       setTestingSMS(false);
     }

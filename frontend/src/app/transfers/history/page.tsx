@@ -138,8 +138,8 @@ export default function TransferHistoryPage() {
 
       setTransfers(filteredItems);
       setTotalPages(data.total_pages);
-    } catch (err: any) {
-      setError(err.message || 'Failed to fetch transfers');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to fetch transfers');
     } finally {
       setLoading(false);
     }
@@ -167,8 +167,8 @@ export default function TransferHistoryPage() {
 
       // Refresh the list
       await fetchTransfers();
-    } catch (err: any) {
-      alert(`Failed to delete transfer: ${err.message}`);
+    } catch (err: unknown) {
+      alert(`Failed to delete transfer: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
       setDeleting(null);
     }

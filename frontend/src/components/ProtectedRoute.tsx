@@ -10,17 +10,17 @@ interface ProtectedRouteProps {
 
 export default function ProtectedRoute({ children }: ProtectedRouteProps) {
   const router = useRouter();
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
+  // Derive the initial auth state synchronously from the stored token so we
+  // don't call setState inside the effect (which causes cascading renders).
+  const [isAuthenticated] = useState<boolean | null>(() =>
+    typeof window === 'undefined' ? null : Boolean(authService.getAccessToken())
+  );
 
   useEffect(() => {
-    const token = authService.getAccessToken();
-    if (!token) {
+    if (isAuthenticated === false) {
       router.push('/login');
-      setIsAuthenticated(false);
-    } else {
-      setIsAuthenticated(true);
     }
-  }, [router]);
+  }, [isAuthenticated, router]);
 
   if (isAuthenticated === null || isAuthenticated === false) {
     return (

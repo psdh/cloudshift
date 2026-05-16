@@ -74,9 +74,6 @@ export default function ReviewConfirm({
     return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
   };
 
-  // Calculate total size of selected files
-  const totalSize = selectedSource.reduce((sum, item) => sum + (item.size || 0), 0);
-
   // Run dry run
   const handleDryRun = async () => {
     if (!jobId) {
@@ -104,8 +101,8 @@ export default function ReviewConfirm({
 
       const result = await response.json();
       setDryRunResult(result);
-    } catch (err: any) {
-      setError(err.message || 'Failed to run dry run');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to run dry run');
     } finally {
       setDryRunning(false);
     }
@@ -170,8 +167,8 @@ export default function ReviewConfirm({
         // Analysis successful, automatically run dry run
         await new Promise(resolve => setTimeout(resolve, 500)); // Brief delay
 
-      } catch (err: any) {
-        setError(err.message || 'Failed to create transfer');
+      } catch (err: unknown) {
+        setError(err instanceof Error ? err.message : 'Failed to create transfer');
       } finally {
         setLoading(false);
       }
@@ -241,8 +238,8 @@ export default function ReviewConfirm({
         // Redirect to progress page
         router.push(`/transfers/${jobId}/progress`);
       }
-    } catch (err: any) {
-      setError(err.message || 'Failed to start transfer');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to start transfer');
     } finally {
       setLoading(false);
     }

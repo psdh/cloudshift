@@ -81,8 +81,8 @@ export default function ConflictResolutionModal({
         onResolved();
         onClose();
       }
-    } catch (err: any) {
-      setError(err.message || 'Failed to fetch conflicts');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to fetch conflicts');
     } finally {
       setLoading(false);
     }
@@ -144,8 +144,8 @@ export default function ConflictResolutionModal({
           onClose();
         }
       }
-    } catch (err: any) {
-      setError(err.message || 'Failed to resolve conflict');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to resolve conflict');
     } finally {
       setResolving(false);
     }
@@ -269,7 +269,7 @@ export default function ConflictResolutionModal({
                   {previewName}
                 </p>
                 <p className="text-xs text-blue-600 mt-2">
-                  If you choose "Rename", the file will be saved with a timestamp suffix
+                  If you choose &quot;Rename&quot;, the file will be saved with a timestamp suffix
                 </p>
               </div>
 
@@ -288,7 +288,7 @@ export default function ConflictResolutionModal({
                     <div>
                       <p className="font-semibold text-gray-900">Skip This File</p>
                       <p className="text-sm text-gray-600 mt-1">
-                        Don't transfer this file, keep the existing destination file
+                        Don&apos;t transfer this file, keep the existing destination file
                       </p>
                     </div>
                   </button>

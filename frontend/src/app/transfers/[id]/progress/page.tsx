@@ -20,24 +20,12 @@ interface ProgressData {
   last_update: string;
 }
 
-interface TransferItem {
-  id: number;
-  source_path: string;
-  dest_path: string;
-  status: string;
-  size: number;
-  error_message: string | null;
-  started_at: string | null;
-  completed_at: string | null;
-}
-
 export default function TransferProgressPage() {
   const params = useParams();
   const router = useRouter();
   const jobId = params?.id as string;
 
   const [progress, setProgress] = useState<ProgressData | null>(null);
-  const [items, setItems] = useState<TransferItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showCompleted, setShowCompleted] = useState(false);
@@ -133,32 +121,9 @@ export default function TransferProgressPage() {
       if (data.files_completed + data.files_failed >= data.total_files) {
         setIsComplete(true);
       }
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : String(err));
       setLoading(false);
-    }
-  }, [jobId]);
-
-  // Fetch transfer items
-  const fetchItems = useCallback(async () => {
-    try {
-      const token = localStorage.getItem('access_token');
-      const response = await fetch(`http://localhost:8000/api/transfers/${jobId}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch transfer items');
-      }
-
-      const data = await response.json();
-      // Note: The API might not return items in the detail endpoint
-      // In a real implementation, you'd have a separate endpoint for items
-      // For now, we'll leave this as a placeholder
-    } catch (err: any) {
-      console.error('Failed to fetch items:', err);
     }
   }, [jobId]);
 
@@ -183,8 +148,8 @@ export default function TransferProgressPage() {
       }
 
       router.push('/dashboard?message=Transfer cancelled');
-    } catch (err: any) {
-      alert(`Failed to cancel transfer: ${err.message}`);
+    } catch (err: unknown) {
+      alert(`Failed to cancel transfer: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
       setCancelling(false);
     }

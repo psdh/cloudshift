@@ -16,20 +16,11 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<UserResponse | null>(null);
-  const [loading, setLoading] = useState(true);
+  // Auth state is resolved synchronously from stored tokens; there is no
+  // async validation yet, so initialize loading to false directly instead of
+  // toggling it inside an effect.
+  const [loading] = useState(false);
   const router = useRouter();
-
-  // Check for existing auth on mount
-  useEffect(() => {
-    const token = authService.getAccessToken();
-    if (token) {
-      // TODO: Validate token and fetch user data
-      // For now, we'll just mark as not loading
-      setLoading(false);
-    } else {
-      setLoading(false);
-    }
-  }, []);
 
   const logout = useCallback(() => {
     authService.clearTokens();

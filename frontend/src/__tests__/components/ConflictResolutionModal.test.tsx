@@ -9,6 +9,13 @@ import ConflictResolutionModal from '@/components/transfers/ConflictResolutionMo
 // Mock fetch
 global.fetch = vi.fn();
 
+// Typed accessor for the mocked fetch. Resolved values are partial Response
+// objects (only the fields the component uses), so they are cast accordingly.
+const mockFetch = () =>
+  vi.mocked(global.fetch) as unknown as {
+    mockResolvedValueOnce: (value: { ok: boolean; json: () => Promise<unknown> }) => void;
+  };
+
 describe('ConflictResolutionModal Component', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -36,7 +43,7 @@ describe('ConflictResolutionModal Component', () => {
     const mockOnResolved = vi.fn();
 
     // Mock conflicts API response
-    (global.fetch as any).mockResolvedValueOnce({
+    mockFetch().mockResolvedValueOnce({
       ok: true,
       json: async () => ({
         conflicts: [
@@ -70,7 +77,7 @@ describe('ConflictResolutionModal Component', () => {
     const mockOnClose = vi.fn();
     const mockOnResolved = vi.fn();
 
-    (global.fetch as any).mockResolvedValueOnce({
+    mockFetch().mockResolvedValueOnce({
       ok: true,
       json: async () => ({
         conflicts: [
@@ -110,7 +117,7 @@ describe('ConflictResolutionModal Component', () => {
     const mockOnClose = vi.fn();
     const mockOnResolved = vi.fn();
 
-    (global.fetch as any).mockResolvedValueOnce({
+    mockFetch().mockResolvedValueOnce({
       ok: true,
       json: async () => ({
         conflicts: [
@@ -148,7 +155,7 @@ describe('ConflictResolutionModal Component', () => {
     const mockOnClose = vi.fn();
     const mockOnResolved = vi.fn();
 
-    (global.fetch as any).mockResolvedValueOnce({
+    mockFetch().mockResolvedValueOnce({
       ok: true,
       json: async () => ({
         conflicts: [
@@ -189,7 +196,7 @@ describe('ConflictResolutionModal Component', () => {
     const mockOnResolved = vi.fn();
 
     // Mock conflicts fetch
-    (global.fetch as any).mockResolvedValueOnce({
+    mockFetch().mockResolvedValueOnce({
       ok: true,
       json: async () => ({
         conflicts: [
@@ -221,7 +228,7 @@ describe('ConflictResolutionModal Component', () => {
     });
 
     // Mock resolve conflict API call
-    (global.fetch as any).mockResolvedValueOnce({
+    mockFetch().mockResolvedValueOnce({
       ok: true,
       json: async () => ({ success: true })
     });
@@ -243,7 +250,7 @@ describe('ConflictResolutionModal Component', () => {
     const mockOnClose = vi.fn();
     const mockOnResolved = vi.fn();
 
-    (global.fetch as any).mockResolvedValueOnce({
+    mockFetch().mockResolvedValueOnce({
       ok: true,
       json: async () => ({
         conflicts: [
@@ -290,7 +297,7 @@ describe('ConflictResolutionModal Component', () => {
     const mockOnResolved = vi.fn();
 
     // Mock conflicts fetch with only one conflict
-    (global.fetch as any).mockResolvedValueOnce({
+    mockFetch().mockResolvedValueOnce({
       ok: true,
       json: async () => ({
         conflicts: [
@@ -322,7 +329,7 @@ describe('ConflictResolutionModal Component', () => {
     });
 
     // Mock resolve conflict - this should close the modal
-    (global.fetch as any).mockResolvedValueOnce({
+    mockFetch().mockResolvedValueOnce({
       ok: true,
       json: async () => ({ success: true })
     });
