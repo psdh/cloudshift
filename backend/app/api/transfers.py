@@ -13,7 +13,7 @@ import json
 from app.core.database import get_db
 from app.core.security import get_current_user_id
 from app.models.transfer import TransferJob, TransferItem, JobStatus, ConflictResolution, ConflictRecord, ItemStatus
-from app.models.connected_account import ConnectedAccount
+from app.models.connected_account import ConnectedAccount, CloudProvider
 from app.services.onedrive import OneDriveService
 from app.services.google_drive import GoogleDriveService
 from app.services.conflict import ConflictDetectionService
@@ -1708,7 +1708,7 @@ async def browse_google_drive_files(
     result = await db.execute(
         select(ConnectedAccount).where(
             ConnectedAccount.user_id == user_id,
-            ConnectedAccount.provider == "google"
+            ConnectedAccount.provider == CloudProvider.GOOGLE_DRIVE.value
         )
     )
     account = result.scalar_one_or_none()
@@ -1739,7 +1739,7 @@ async def browse_google_drive_files(
         return CloudFileListResponse(
             items=items,
             folder_id=folder_id,
-            provider="google"
+            provider=CloudProvider.GOOGLE_DRIVE.value
         )
     except Exception as e:
         logger.error(f"Error browsing Google Drive folder {folder_id}: {str(e)}")
@@ -1774,7 +1774,7 @@ async def create_google_drive_folder(
     result = await db.execute(
         select(ConnectedAccount).where(
             ConnectedAccount.user_id == user_id,
-            ConnectedAccount.provider == "google"
+            ConnectedAccount.provider == CloudProvider.GOOGLE_DRIVE.value
         )
     )
     account = result.scalar_one_or_none()

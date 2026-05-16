@@ -351,7 +351,7 @@ export default function TransferHistoryPage() {
                                   <path fillRule="evenodd" d="M10.293 15.707a1 1 0 010-1.414L14.586 10l-4.293-4.293a1 1 0 111.414-1.414l5 5a1 1 0 010 1.414l-5 5a1 1 0 01-1.414 0z" clipRule="evenodd" />
                                 </svg>
                                 <span className="font-medium text-gray-900">
-                                  {transfer.dest_provider === 'google' ? 'Google Drive' : 'OneDrive'}
+                                  {transfer.dest_provider === 'google_drive' ? 'Google Drive' : 'OneDrive'}
                                 </span>
                               </div>
                             </td>

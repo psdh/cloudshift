@@ -43,8 +43,8 @@ class RateLimiter:
         self._warning_threshold = 0.8  # Warn at 80% of limit
         self._request_window = 60  # 60 second window
         self._max_requests_per_minute = {
-            "onedrive": 100,  # Conservative limit
-            "google": 100     # Conservative limit
+            "onedrive": 100,       # Conservative limit
+            "google_drive": 100    # Conservative limit
         }
 
     async def check_rate_limit(self, provider: str) -> bool:

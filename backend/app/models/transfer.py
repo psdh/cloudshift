@@ -1,10 +1,11 @@
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Enum, Text, BigInteger
 from sqlalchemy.sql import func
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, validates
 from sqlalchemy.dialects.postgresql import JSON
 import enum
 
 from app.core.database import Base
+from app.models.connected_account import CloudProvider
 
 
 class JobStatus(str, enum.Enum):
@@ -85,6 +86,13 @@ class TransferJob(Base):
     user = relationship("User", backref="transfer_jobs")
     items = relationship("TransferItem", back_populates="job", cascade="all, delete-orphan")
     conflicts = relationship("ConflictRecord", back_populates="job", cascade="all, delete-orphan")
+
+    @validates("source_provider", "dest_provider")
+    def _normalize_provider(self, key, value):
+        """Normalize provider strings to canonical CloudProvider values so
+        that account lookups (which store the enum value) always match,
+        regardless of whether a caller used the legacy "google" alias."""
+        return CloudProvider.normalize(value)
 
     def __repr__(self):
         return f"<TransferJob(id={self.id}, user_id={self.user_id}, status={self.status})>"

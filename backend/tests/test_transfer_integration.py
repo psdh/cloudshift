@@ -48,7 +48,7 @@ def connected_accounts(db_session, test_user):
     )
     google_account = ConnectedAccount(
         user_id=test_user.id,
-        provider="google",
+        provider="google_drive",
         access_token="fake_google_token",
         refresh_token="fake_refresh",
         token_expiry=datetime.utcnow() + timedelta(hours=1),
@@ -86,7 +86,7 @@ class TestTransferCRUD:
         assert response.status_code == 201
         data = response.json()
         assert data["source_provider"] == "onedrive"
-        assert data["dest_provider"] == "google"
+        assert data["dest_provider"] == "google_drive"
         assert data["status"] == "draft"
         assert data["config"]["conflict_strategy"] == "ask"
         assert "id" in data

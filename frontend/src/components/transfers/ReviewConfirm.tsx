@@ -129,7 +129,7 @@ export default function ReviewConfirm({
           },
           body: JSON.stringify({
             source_provider: 'onedrive',
-            dest_provider: 'google',
+            dest_provider: 'google_drive',
             source_folder_id: selectedSource[0]?.id || 'root',
             dest_folder_id: destinationFolderId,
             config: {

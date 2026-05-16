@@ -42,7 +42,7 @@ function ConnectedAccountsContent() {
     }
   };
 
-  const handleConnect = (provider: 'onedrive' | 'google') => {
+  const handleConnect = (provider: 'onedrive' | 'google_drive') => {
     const url =
       provider === 'onedrive'
         ? accountsService.getOneDriveAuthUrl()
@@ -50,7 +50,7 @@ function ConnectedAccountsContent() {
     window.location.href = url;
   };
 
-  const handleDisconnect = async (provider: 'onedrive' | 'google') => {
+  const handleDisconnect = async (provider: 'onedrive' | 'google_drive') => {
     if (
       !confirm(
         `Are you sure you want to disconnect your ${provider === 'onedrive' ? 'OneDrive' : 'Google Drive'} account?`
@@ -73,11 +73,11 @@ function ConnectedAccountsContent() {
     }
   };
 
-  const isConnected = (provider: 'onedrive' | 'google') => {
+  const isConnected = (provider: 'onedrive' | 'google_drive') => {
     return accounts.some((acc) => acc.provider === provider);
   };
 
-  const getAccount = (provider: 'onedrive' | 'google') => {
+  const getAccount = (provider: 'onedrive' | 'google_drive') => {
     return accounts.find((acc) => acc.provider === provider);
   };
 
@@ -153,9 +153,9 @@ function ConnectedAccountsContent() {
                     </div>
                     <div>
                       <h3 className="text-lg font-semibold text-gray-900">Google Drive</h3>
-                      {isConnected('google') ? (
+                      {isConnected('google_drive') ? (
                         <p className="text-sm text-gray-600">
-                          Connected as: {getAccount('google')?.account_email}
+                          Connected as: {getAccount('google_drive')?.account_email}
                         </p>
                       ) : (
                         <p className="text-sm text-gray-500">Not connected</p>
@@ -163,17 +163,17 @@ function ConnectedAccountsContent() {
                     </div>
                   </div>
                   <div>
-                    {isConnected('google') ? (
+                    {isConnected('google_drive') ? (
                       <button
-                        onClick={() => handleDisconnect('google')}
-                        disabled={disconnecting === 'google'}
+                        onClick={() => handleDisconnect('google_drive')}
+                        disabled={disconnecting === 'google_drive'}
                         className="px-4 py-2 border border-red-600 text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                       >
-                        {disconnecting === 'google' ? 'Disconnecting...' : 'Disconnect'}
+                        {disconnecting === 'google_drive' ? 'Disconnecting...' : 'Disconnect'}
                       </button>
                     ) : (
                       <button
-                        onClick={() => handleConnect('google')}
+                        onClick={() => handleConnect('google_drive')}
                         className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors"
                       >
                         Connect Google Drive

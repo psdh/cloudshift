@@ -12,6 +12,28 @@ class CloudProvider(str, enum.Enum):
     ONEDRIVE = "onedrive"
     GOOGLE_DRIVE = "google_drive"
 
+    @classmethod
+    def normalize(cls, value: str) -> str:
+        """Map any accepted provider alias to its canonical enum value.
+
+        The frontend and older code used "google"; canonical is the enum
+        value "google_drive". Raises ValueError for unknown providers.
+        """
+        if value is None:
+            raise ValueError("provider is required")
+        canonical = _PROVIDER_ALIASES.get(str(value).strip().lower())
+        if canonical is None:
+            raise ValueError(f"Unsupported provider: {value!r}")
+        return canonical
+
+
+# Legacy / client provider aliases -> canonical CloudProvider value.
+_PROVIDER_ALIASES = {
+    "onedrive": CloudProvider.ONEDRIVE.value,
+    "google": CloudProvider.GOOGLE_DRIVE.value,
+    "google_drive": CloudProvider.GOOGLE_DRIVE.value,
+}
+
 
 class ConnectedAccount(Base):
     """

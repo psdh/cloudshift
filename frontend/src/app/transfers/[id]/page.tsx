@@ -393,7 +393,7 @@ export default function TransferDetailPage() {
                   <div>
                     <p className="text-sm text-gray-600 mb-1">Destination</p>
                     <p className="font-medium text-gray-900">
-                      {job.dest_provider === 'google' ? 'Google Drive' : 'OneDrive'}
+                      {job.dest_provider === 'google_drive' ? 'Google Drive' : 'OneDrive'}
                     </p>
                   </div>
                   <div>

@@ -1,9 +1,10 @@
-import { apiClient } from './api';
 import { authService } from './auth';
+
+export type CloudProvider = 'onedrive' | 'google_drive';
 
 export interface ConnectedAccount {
   id: number;
-  provider: 'onedrive' | 'google';
+  provider: CloudProvider;
   account_email: string;
   created_at: string;
 }
@@ -55,7 +56,7 @@ export const accountsService = {
     return authenticatedClient.get<ConnectedAccount[]>('/api/accounts');
   },
 
-  async disconnectAccount(provider: 'onedrive' | 'google'): Promise<{ message: string }> {
+  async disconnectAccount(provider: CloudProvider): Promise<{ message: string }> {
     return authenticatedClient.delete<{ message: string }>(`/api/accounts/${provider}`);
   },
 
