@@ -84,21 +84,33 @@ async def db():
         yield session
 
 
+async def _override_get_db():
+    async with _AsyncSession() as session:
+        try:
+            yield session
+            await session.commit()
+        except Exception:
+            await session.rollback()
+            raise
+
+
 @pytest.fixture
 def client():
     """Test client whose `get_db` dependency yields an async session bound
     to the same shared database the `db_session` fixture writes to."""
-
-    async def override_get_db():
-        async with _AsyncSession() as session:
-            try:
-                yield session
-                await session.commit()
-            except Exception:
-                await session.rollback()
-                raise
-
-    app.dependency_overrides[get_db] = override_get_db
+    app.dependency_overrides[get_db] = _override_get_db
     with TestClient(app) as test_client:
         yield test_client
+    app.dependency_overrides.clear()
+
+
+@pytest_asyncio.fixture
+async def async_client():
+    """httpx.AsyncClient bound to the app with the same test-DB override as
+    `client` (needed for async endpoints such as SSE streaming)."""
+    from httpx import AsyncClient
+
+    app.dependency_overrides[get_db] = _override_get_db
+    async with AsyncClient(app=app, base_url="http://test") as ac:
+        yield ac
     app.dependency_overrides.clear()

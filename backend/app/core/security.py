@@ -1,3 +1,4 @@
+import secrets
 from passlib.context import CryptContext
 from datetime import datetime, timedelta
 from jose import JWTError, jwt
@@ -57,7 +58,7 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
     else:
         expire = datetime.utcnow() + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
 
-    to_encode.update({"exp": expire, "type": "access"})
+    to_encode.update({"exp": expire, "type": "access", "jti": secrets.token_urlsafe(8)})
     encoded_jwt = jwt.encode(to_encode, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
     return encoded_jwt
 
@@ -75,7 +76,7 @@ def create_refresh_token(data: dict) -> str:
     to_encode = data.copy()
     expire = datetime.utcnow() + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
 
-    to_encode.update({"exp": expire, "type": "refresh"})
+    to_encode.update({"exp": expire, "type": "refresh", "jti": secrets.token_urlsafe(8)})
     encoded_jwt = jwt.encode(to_encode, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
     return encoded_jwt
 
@@ -97,8 +98,9 @@ def decode_token(token: str) -> Optional[dict]:
         return None
 
 
-# HTTP Bearer for JWT authentication
-security = HTTPBearer()
+# HTTP Bearer for JWT authentication. auto_error=False so a missing/!Bearer
+# Authorization header yields our 401 (not Starlette's default 403).
+security = HTTPBearer(auto_error=False)
 
 
 async def get_current_user_id(
@@ -117,6 +119,13 @@ async def get_current_user_id(
     Raises:
         HTTPException 401: If token is invalid, expired, or missing
     """
+    if credentials is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authenticated",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
     token = credentials.credentials
 
     # Decode and verify token

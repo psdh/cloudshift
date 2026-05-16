@@ -104,6 +104,8 @@ class EmailService:
         """
         formatted_size = self._format_file_size(total_size)
         success_rate = (files_transferred / total_files * 100) if total_files > 0 else 0
+        source_provider = source_provider.capitalize()
+        dest_provider = dest_provider.capitalize()
 
         return f"""
 <!DOCTYPE html>
@@ -201,6 +203,9 @@ class EmailService:
         Returns:
             HTML email content
         """
+        source_provider = source_provider.capitalize()
+        dest_provider = dest_provider.capitalize()
+
         return f"""
 <!DOCTYPE html>
 <html>

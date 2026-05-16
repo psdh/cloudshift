@@ -10,7 +10,7 @@ from datetime import datetime
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.transfer import TransferJob, TransferItem, JobStatus
+from app.models.transfer import TransferJob, TransferItem, JobStatus, ItemStatus
 from app.services.s3 import S3Service
 from app.services.notifications import send_job_notification
 
@@ -71,11 +71,11 @@ class JobFailureHandler:
             items = items_result.scalars().all()
 
             # Count progress
-            completed_items = [item for item in items if item.status == JobStatus.COMPLETED]
-            failed_items = [item for item in items if item.status == JobStatus.FAILED]
+            completed_items = [item for item in items if item.status == ItemStatus.COMPLETED]
+            failed_items = [item for item in items if item.status == ItemStatus.FAILED]
             pending_items = [
                 item for item in items
-                if item.status in [JobStatus.PENDING, JobStatus.IN_PROGRESS]
+                if item.status in [ItemStatus.PENDING, ItemStatus.IN_PROGRESS]
             ]
 
             logger.info(
@@ -104,14 +104,14 @@ class JobFailureHandler:
             else:
                 # Reset all items to pending for full retry
                 for item in completed_items:
-                    item.status = JobStatus.PENDING
+                    item.status = ItemStatus.PENDING
                 logger.info(f"Reset {len(completed_items)} completed items to pending for full retry")
 
             # Mark pending items as failed
             for item in pending_items:
                 if not item.error_message:
                     item.error_message = error_message
-                item.status = JobStatus.FAILED
+                item.status = ItemStatus.FAILED
                 item.completed_at = datetime.utcnow()
 
             await db.commit()
@@ -119,10 +119,15 @@ class JobFailureHandler:
             # Clean up S3 intermediate files
             s3_cleanup_count = await self._cleanup_s3_files(job_id, items)
 
-            # Trigger notification asynchronously
-            # Import here to avoid circular dependency
-            from app.services.transfer_worker import trigger_notification
-            trigger_notification(job_id)
+            # Trigger notification asynchronously (best-effort: a down broker
+            # must not turn successful failure-handling into a failure).
+            try:
+                from app.services.transfer_worker import trigger_notification
+                trigger_notification(job_id)
+            except Exception as notify_err:
+                logger.warning(
+                    f"Could not enqueue failure notification for job {job_id}: {notify_err}"
+                )
 
             logger.info(
                 f"Job {job_id} failure handled: "
@@ -169,7 +174,7 @@ class JobFailureHandler:
         for item in items:
             # Only clean up files that are in pending or failed state
             # (completed files should have already been cleaned up)
-            if item.status in [JobStatus.PENDING, JobStatus.FAILED, JobStatus.IN_PROGRESS]:
+            if item.status in [ItemStatus.PENDING, ItemStatus.FAILED, ItemStatus.IN_PROGRESS]:
                 s3_key = f"transfers/{job_id}/{item.id}/{item.source_path}"
 
                 try:
@@ -220,7 +225,7 @@ class JobFailureHandler:
                 }
 
             # Mark item as failed
-            item.status = JobStatus.FAILED
+            item.status = ItemStatus.FAILED
             item.error_message = error_message
             item.completed_at = datetime.utcnow()
 

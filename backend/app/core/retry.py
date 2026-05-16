@@ -177,6 +177,10 @@ def retry_on_transient_error(
             return response.json()
     """
     def decorator(func: Callable[..., T]) -> Callable[..., T]:
+        # Resolve a display name once; callables without __name__ (e.g. Mock,
+        # functools.partial) must not crash the retry logging.
+        func_name = getattr(func, "__name__", repr(func))
+
         @wraps(func)
         def wrapper(*args, **kwargs) -> T:
             last_error = None
@@ -195,7 +199,7 @@ def retry_on_transient_error(
                     # Don't retry permanent errors
                     if is_permanent_error(e):
                         logger.warning(
-                            f"{func.__name__} failed with permanent error: {str(e)}"
+                            f"{func_name} failed with permanent error: {str(e)}"
                         )
                         raise
 
@@ -211,7 +215,7 @@ def retry_on_transient_error(
                     delay = calculate_backoff_delay(attempt, base_delay)
 
                     logger.warning(
-                        f"{func.__name__} failed (attempt {attempt + 1}/{max_retries + 1}): {str(e)}. "
+                        f"{func_name} failed (attempt {attempt + 1}/{max_retries + 1}): {str(e)}. "
                         f"Retrying in {delay}s..."
                     )
 
@@ -219,7 +223,7 @@ def retry_on_transient_error(
 
             # All retries exhausted
             logger.error(
-                f"{func.__name__} failed after {max_retries + 1} attempts: {str(last_error)}"
+                f"{func_name} failed after {max_retries + 1} attempts: {str(last_error)}"
             )
             raise last_error
 
@@ -252,6 +256,10 @@ def async_retry_on_transient_error(
                 return response.json()
     """
     def decorator(func: Callable[..., T]) -> Callable[..., T]:
+        # Resolve a display name once; callables without __name__ (e.g. Mock,
+        # functools.partial) must not crash the retry logging.
+        func_name = getattr(func, "__name__", repr(func))
+
         @wraps(func)
         async def wrapper(*args, **kwargs) -> T:
             last_error = None
@@ -270,7 +278,7 @@ def async_retry_on_transient_error(
                     # Don't retry permanent errors
                     if is_permanent_error(e):
                         logger.warning(
-                            f"{func.__name__} failed with permanent error: {str(e)}"
+                            f"{func_name} failed with permanent error: {str(e)}"
                         )
                         raise
 
@@ -286,7 +294,7 @@ def async_retry_on_transient_error(
                     delay = calculate_backoff_delay(attempt, base_delay)
 
                     logger.warning(
-                        f"{func.__name__} failed (attempt {attempt + 1}/{max_retries + 1}): {str(e)}. "
+                        f"{func_name} failed (attempt {attempt + 1}/{max_retries + 1}): {str(e)}. "
                         f"Retrying in {delay}s..."
                     )
 
@@ -294,7 +302,7 @@ def async_retry_on_transient_error(
 
             # All retries exhausted
             logger.error(
-                f"{func.__name__} failed after {max_retries + 1} attempts: {str(last_error)}"
+                f"{func_name} failed after {max_retries + 1} attempts: {str(last_error)}"
             )
             raise last_error
 

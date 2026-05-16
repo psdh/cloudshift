@@ -365,7 +365,8 @@ class TestAuthFlow:
             "/api/auth/register",
             json={
                 "email": "newuser@example.com",
-                "password": "SecurePass123"
+                "password": "SecurePass123",
+                "confirm_password": "SecurePass123"
             }
         )
         assert register_response.status_code == 201
@@ -430,7 +431,8 @@ class TestAuthFlow:
             "/api/auth/register",
             json={
                 "email": "test@example.com",
-                "password": "SecurePass123"
+                "password": "SecurePass123",
+                "confirm_password": "SecurePass123"
             }
         )
         assert response.status_code == 400

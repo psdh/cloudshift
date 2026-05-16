@@ -6,7 +6,7 @@ import pytest
 from datetime import datetime
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.transfer import TransferJob, TransferItem, JobStatus
+from app.models.transfer import TransferJob, TransferItem, JobStatus, ItemStatus
 from app.models.user import User
 from app.services.job_failure_handler import JobFailureHandler
 from app.core.security import hash_password
@@ -209,7 +209,7 @@ async def test_mark_item_failed(db: AsyncSession):
         job_id=job.id,
         source_file_id="file1",
         source_path="test.pdf",
-        status=JobStatus.IN_PROGRESS,
+        status=ItemStatus.IN_PROGRESS,
         size=1024
     )
     db.add(item)

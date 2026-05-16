@@ -5,7 +5,7 @@ from app.core.database import get_db
 from app.services.auth import AuthService
 from app.services.audit import AuditService
 from app.schemas.user import UserRegister, UserResponse, UserLogin, TokenResponse, TokenRefresh
-from app.core.security import create_access_token, create_refresh_token, decode_token
+from app.core.security import create_access_token, create_refresh_token, decode_token, get_current_user_id
 from sqlalchemy.exc import IntegrityError
 
 router = APIRouter(prefix="/api/auth", tags=["authentication"])
@@ -169,3 +169,24 @@ async def refresh_token(
         access_token=new_access_token,
         refresh_token=new_refresh_token,
     )
+
+
+@router.get("/me", response_model=UserResponse)
+async def get_me(
+    user_id: int = Depends(get_current_user_id),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Return the currently authenticated user's profile.
+
+    Raises:
+        HTTPException 401: If the token is missing/invalid or the user is gone.
+    """
+    user = await AuthService.get_user_by_id(db, user_id)
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User not found",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    return UserResponse.model_validate(user)

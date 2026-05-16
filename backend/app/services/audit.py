@@ -47,16 +47,19 @@ class AuditService:
         # Auto-extract IP and user agent from request if provided
         if request:
             if not ip_address:
-                # Try to get real IP from X-Forwarded-For header first (for proxies)
+                # Try to get real IP from X-Forwarded-For header first (for proxies).
+                # Guard with isinstance: a real Starlette header is str|None, but
+                # audit logging must never break the request on an odd value.
                 forwarded_for = request.headers.get("X-Forwarded-For")
-                if forwarded_for:
+                if isinstance(forwarded_for, str) and forwarded_for:
                     ip_address = forwarded_for.split(",")[0].strip()
                 else:
                     # Fall back to client host
                     ip_address = request.client.host if request.client else None
 
             if not user_agent:
-                user_agent = request.headers.get("User-Agent")
+                ua = request.headers.get("User-Agent")
+                user_agent = ua if isinstance(ua, str) else None
 
         # Create audit log entry
         audit_log = AuditLog(

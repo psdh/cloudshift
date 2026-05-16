@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from unittest.mock import Mock, patch, AsyncMock
 
-from app.models.transfer import TransferJob, TransferItem, JobStatus, ConflictRecord
+from app.models.transfer import TransferJob, TransferItem, JobStatus, ItemStatus, ConflictRecord
 from app.models.user import User
 from app.models.connected_account import ConnectedAccount
 from app.core.security import hash_password
@@ -405,7 +405,7 @@ async def test_progress_calculation_partial_completion(db: AsyncSession):
         ("file_1.txt", JobStatus.COMPLETED, 1000),
         ("file_2.txt", JobStatus.COMPLETED, 2000),
         ("file_3.txt", JobStatus.PENDING, 1500),
-        ("file_4.txt", JobStatus.IN_PROGRESS, 3000),
+        ("file_4.txt", ItemStatus.IN_PROGRESS, 3000),
         ("file_5.txt", JobStatus.PENDING, 500),
     ]
 

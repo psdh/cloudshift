@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, delete
 from sqlalchemy.orm import selectinload
 from typing import List, Optional, Dict, Any
-from datetime import datetime, date
+from datetime import datetime, date, timezone
 from collections import defaultdict
 import logging
 import asyncio
@@ -338,7 +338,8 @@ async def cancel_transfer(
     return {
         "success": True,
         "message": "Transfer job cancelled successfully",
-        "job_id": job_id
+        "job_id": job_id,
+        "status": job.status.value
     }
 
 
@@ -1481,16 +1482,15 @@ class ScheduleTransferRequest(BaseModel):
     @field_validator("scheduled_for")
     @classmethod
     def validate_scheduled_time(cls, v: datetime) -> datetime:
-        """Validate that scheduled time is in the future."""
-        # Ensure datetime is timezone-aware
+        """Validate that scheduled time is in the future.
+
+        A naive datetime is interpreted as UTC (common client behaviour)
+        rather than rejected.
+        """
         if v.tzinfo is None:
-            raise ValueError("scheduled_for must include timezone information")
+            v = v.replace(tzinfo=timezone.utc)
 
-        # Convert to UTC for comparison
-        now_utc = datetime.now(v.tzinfo).astimezone()
-        v_utc = v.astimezone()
-
-        if v_utc <= now_utc:
+        if v <= datetime.now(timezone.utc):
             raise ValueError("scheduled_for must be in the future")
 
         return v
@@ -1562,7 +1562,7 @@ async def schedule_transfer(
         )
 
     # Convert scheduled time to UTC for storage
-    scheduled_utc = schedule_request.scheduled_for.astimezone()
+    scheduled_utc = schedule_request.scheduled_for.astimezone(timezone.utc)
 
     # Update job with scheduled time and status
     job.scheduled_for = scheduled_utc.replace(tzinfo=None)  # Store as naive UTC

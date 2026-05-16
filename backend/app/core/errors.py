@@ -141,6 +141,9 @@ def create_error_response(
     """
     response = {
         "error": error,
+        # `detail` mirrors `error` for FastAPI-convention clients/tests; the
+        # frontend reads `error`. Keeping both is backwards compatible.
+        "detail": error,
         "code": code,
         "status_code": status_code
     }
