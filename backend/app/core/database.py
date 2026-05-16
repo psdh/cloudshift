@@ -49,6 +49,40 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
 
 
 @asynccontextmanager
+async def worker_session() -> AsyncGenerator[AsyncSession, None]:
+    """Session for Celery tasks that wrap their work in ``asyncio.run``.
+
+    Each task invocation runs in a *fresh* event loop. The module-global
+    pooled engine binds connections to the loop that created them, so reusing
+    it across ``asyncio.run`` calls raises "Future attached to a different
+    loop". This builds a throwaway NullPool engine inside the current loop and
+    disposes it on exit, keeping every connection loop-local.
+    """
+    from sqlalchemy.pool import NullPool
+
+    engine = create_async_engine(
+        settings.DATABASE_URL
+        or "postgresql+asyncpg://cloudshift:cloudshift_dev_password@localhost:5432/cloudshift",
+        poolclass=NullPool,
+    )
+    session_maker = async_sessionmaker(
+        engine, class_=AsyncSession, expire_on_commit=False, autoflush=False
+    )
+    try:
+        async with session_maker() as session:
+            try:
+                yield session
+                await session.commit()
+            except Exception:
+                await session.rollback()
+                raise
+            finally:
+                await session.close()
+    finally:
+        await engine.dispose()
+
+
+@asynccontextmanager
 async def get_async_session() -> AsyncGenerator[AsyncSession, None]:
     """
     Context manager to get database session for use in async code.

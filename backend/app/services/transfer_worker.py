@@ -18,7 +18,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
 from app.core.celery_app import celery_app
-from app.core.database import get_db
+from app.core.database import worker_session
 from app.models.audit_log import AuditAction
 from app.models.connected_account import ConnectedAccount
 from app.models.transfer import (
@@ -77,7 +77,7 @@ def transfer_single_file(self, item_id: int) -> dict:
     """Transfer a single file: OneDrive -> S3 -> Google Drive (streamed)."""
 
     async def _transfer():
-        async for db in get_db():
+        async with worker_session() as db:
             item = None
             s3_service = S3Service()
             s3_key = None
@@ -287,9 +287,6 @@ def transfer_single_file(self, item_id: int) -> dict:
                     except Exception:
                         pass
                 raise TransferError(f"Transfer failed: {e}")
-            finally:
-                await db.close()
-                break
 
     return asyncio.run(_transfer())
 
@@ -299,7 +296,7 @@ def transfer_job_orchestrator(self, job_id: int) -> dict:
     """Queue every outstanding item of a job (resumable, no truncation)."""
 
     async def _orchestrate():
-        async for db in get_db():
+        async with worker_session() as db:
             try:
                 job = (
                     await db.execute(
@@ -370,8 +367,5 @@ def transfer_job_orchestrator(self, job_id: int) -> dict:
                     await db.commit()
                     trigger_notification(job_id)
                 raise TransferError(f"Job orchestration failed: {e}")
-            finally:
-                await db.close()
-                break
 
     return asyncio.run(_orchestrate())

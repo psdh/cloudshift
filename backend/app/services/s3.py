@@ -12,6 +12,7 @@ import logging
 from typing import AsyncIterator, Optional
 
 import boto3
+from botocore.client import Config as BotoConfig
 from botocore.exceptions import ClientError
 
 from app.core.config import settings
@@ -34,11 +35,20 @@ class S3Service:
     def s3_client(self):
         # Lazy: importing this module must not require AWS credentials.
         if self._client is None:
+            # A custom endpoint (MinIO/LocalStack/non-AWS) needs path-style
+            # addressing; signature v4 is correct for both AWS and MinIO.
+            boto_cfg = BotoConfig(signature_version="s3v4")
+            if settings.AWS_S3_ENDPOINT_URL:
+                boto_cfg = BotoConfig(
+                    signature_version="s3v4", s3={"addressing_style": "path"}
+                )
             self._client = boto3.client(
                 "s3",
                 aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
                 aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
                 region_name=settings.AWS_REGION,
+                endpoint_url=settings.AWS_S3_ENDPOINT_URL or None,
+                config=boto_cfg,
             )
         return self._client
 

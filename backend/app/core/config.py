@@ -32,6 +32,8 @@ class Settings(BaseSettings):
     AWS_SECRET_ACCESS_KEY: Optional[str] = None
     AWS_REGION: str = "us-east-1"
     S3_BUCKET_NAME: Optional[str] = None
+    # Optional custom S3 endpoint (MinIO / LocalStack / non-AWS S3). None = real AWS.
+    AWS_S3_ENDPOINT_URL: Optional[str] = None
 
     # OAuth - OneDrive
     ONEDRIVE_CLIENT_ID: Optional[str] = None

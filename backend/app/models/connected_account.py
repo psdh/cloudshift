@@ -54,7 +54,10 @@ class ConnectedAccount(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
-    provider = Column(Enum(CloudProvider), nullable=False)
+    provider = Column(
+        Enum(CloudProvider, values_callable=lambda e: [m.value for m in e]),
+        nullable=False,
+    )
 
     # Encrypted tokens (stored as encrypted strings)
     access_token = Column(String(1000), nullable=False)

@@ -65,7 +65,10 @@ class TransferJob(Base):
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
 
     # Job status
-    status = Column(Enum(JobStatus), nullable=False, default=JobStatus.DRAFT, index=True)
+    status = Column(
+        Enum(JobStatus, values_callable=lambda e: [m.value for m in e]),
+        nullable=False, default=JobStatus.DRAFT, index=True,
+    )
 
     # Source and destination
     source_provider = Column(String(50), nullable=False)
@@ -126,7 +129,10 @@ class TransferItem(Base):
     dest_path = Column(Text, nullable=True)
 
     # Transfer status
-    status = Column(Enum(ItemStatus), nullable=False, default=ItemStatus.PENDING, index=True)
+    status = Column(
+        Enum(ItemStatus, values_callable=lambda e: [m.value for m in e]),
+        nullable=False, default=ItemStatus.PENDING, index=True,
+    )
     size = Column(BigInteger, nullable=True)  # File size in bytes
     error_message = Column(Text, nullable=True)
 
@@ -160,7 +166,10 @@ class ConflictRecord(Base):
     item_id = Column(Integer, ForeignKey("transfer_items.id", ondelete="CASCADE"), nullable=False, index=True)
 
     # Resolution
-    resolution = Column(Enum(ConflictResolution), nullable=True)
+    resolution = Column(
+        Enum(ConflictResolution, values_callable=lambda e: [m.value for m in e]),
+        nullable=True,
+    )
     resolved_at = Column(DateTime(timezone=True), nullable=True)
 
     # Relationships
