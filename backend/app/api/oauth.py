@@ -59,8 +59,8 @@ async def onedrive_authorize(
     Returns:
         AuthorizeResponse: Authorization URL and state parameter
     """
-    # Generate state for CSRF protection
-    state = OAuthService.generate_state()
+    # Generate signed, user-bound state for CSRF protection
+    state = OAuthService.generate_state(user_id)
 
     # Build redirect URI
     base_url = str(request.base_url).rstrip("/")
@@ -68,10 +68,6 @@ async def onedrive_authorize(
 
     # Get authorization URL
     auth_url = OAuthService.get_onedrive_auth_url(state, redirect_uri)
-
-    # Store state in session/cache for validation (simplified for now)
-    # In production, store state in Redis with user_id and expiry
-    # For now, we'll validate state exists in the callback
 
     return AuthorizeResponse(auth_url=auth_url, state=state)
 
@@ -119,13 +115,17 @@ async def onedrive_callback(
             detail="Missing code or state parameter"
         )
 
-    # TODO: Validate state parameter against stored value in Redis
-    # For now, we'll accept any state (simplified for development)
+    # Validate the signed, user-bound state (CSRF protection)
+    if not OAuthService.validate_state(state, user_id):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired OAuth state"
+        )
 
     try:
-        # Build redirect URI (same as in authorize)
-        # In production, this should be from settings
-        redirect_uri = f"{settings.APP_URL or 'http://localhost:8000'}/api/oauth/onedrive/callback"
+        # Build redirect URI — must be identical to the one used in /authorize
+        base_url = str(request.base_url).rstrip("/")
+        redirect_uri = f"{base_url}/api/oauth/onedrive/callback"
 
         # Exchange code for tokens
         token_response = await OAuthService.exchange_onedrive_code(code, redirect_uri)
@@ -200,8 +200,8 @@ async def google_authorize(
     Returns:
         AuthorizeResponse: Authorization URL and state parameter
     """
-    # Generate state for CSRF protection
-    state = OAuthService.generate_state()
+    # Generate signed, user-bound state for CSRF protection
+    state = OAuthService.generate_state(user_id)
 
     # Build redirect URI
     base_url = str(request.base_url).rstrip("/")
@@ -215,6 +215,7 @@ async def google_authorize(
 
 @router.get("/google/callback")
 async def google_callback(
+    request: Request,
     code: Optional[str] = None,
     state: Optional[str] = None,
     error: Optional[str] = None,
@@ -255,11 +256,17 @@ async def google_callback(
             detail="Missing code or state parameter"
         )
 
-    # TODO: Validate state parameter against stored value in Redis
+    # Validate the signed, user-bound state (CSRF protection)
+    if not OAuthService.validate_state(state, user_id):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired OAuth state"
+        )
 
     try:
-        # Build redirect URI (same as in authorize)
-        redirect_uri = f"{settings.APP_URL or 'http://localhost:8000'}/api/oauth/google/callback"
+        # Build redirect URI — must be identical to the one used in /authorize
+        base_url = str(request.base_url).rstrip("/")
+        redirect_uri = f"{base_url}/api/oauth/google/callback"
 
         # Exchange code for tokens
         token_response = await OAuthService.exchange_google_code(code, redirect_uri)
@@ -310,7 +317,3 @@ async def google_callback(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Unexpected error during OAuth flow: {str(e)}"
         )
-
-
-# Import settings at the end to avoid circular imports
-from app.core.config import settings

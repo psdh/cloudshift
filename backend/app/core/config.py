@@ -1,6 +1,12 @@
-import os
+import logging
+import secrets
 from typing import Optional
+
+from cryptography.fernet import Fernet
+from pydantic import model_validator
 from pydantic_settings import BaseSettings
+
+logger = logging.getLogger(__name__)
 
 
 class Settings(BaseSettings):
@@ -35,16 +41,16 @@ class Settings(BaseSettings):
     GOOGLE_CLIENT_ID: Optional[str] = None
     GOOGLE_CLIENT_SECRET: Optional[str] = None
 
-    # JWT
-    JWT_SECRET_KEY: str = "CHANGE_ME_IN_PRODUCTION"
+    # JWT — no default secret is shipped; see _require_secrets below.
+    JWT_SECRET_KEY: Optional[str] = None
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 15
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
 
-    # Encryption (32-byte URL-safe base64-encoded key for Fernet)
-    # Generate with: from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())
-    # This is a development key - MUST be changed in production
-    ENCRYPTION_KEY: str = "LiVnlcD7MNZvMYRuQPxo83eRjYwCja4MnWmxoO2E3lM="
+    # Encryption key for OAuth tokens at rest (32-byte url-safe base64 Fernet key).
+    # Generate with: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+    # No default is shipped; see _require_secrets below.
+    ENCRYPTION_KEY: Optional[str] = None
 
     # Notifications
     TWILIO_ACCOUNT_SID: Optional[str] = None
@@ -56,6 +62,36 @@ class Settings(BaseSettings):
 
     # Frontend URL (for email links)
     FRONTEND_URL: str = "http://localhost:3000"
+
+    @model_validator(mode="after")
+    def _require_secrets(self):
+        """Fail fast in production if security secrets are unset.
+
+        No secret is shipped as a code default (a committed key is equivalent
+        to no key). In DEBUG an ephemeral key is generated so local/test runs
+        work; in production a missing secret raises at startup.
+        """
+        if not self.JWT_SECRET_KEY:
+            if self.DEBUG:
+                self.JWT_SECRET_KEY = secrets.token_urlsafe(64)
+                logger.warning(
+                    "JWT_SECRET_KEY not set; generated an ephemeral DEBUG key. "
+                    "Set JWT_SECRET_KEY before production."
+                )
+            else:
+                raise ValueError("JWT_SECRET_KEY must be set (no default is provided).")
+
+        if not self.ENCRYPTION_KEY:
+            if self.DEBUG:
+                self.ENCRYPTION_KEY = Fernet.generate_key().decode()
+                logger.warning(
+                    "ENCRYPTION_KEY not set; generated an ephemeral DEBUG key. "
+                    "Tokens encrypted now will not be decryptable after restart. "
+                    "Set ENCRYPTION_KEY before production."
+                )
+            else:
+                raise ValueError("ENCRYPTION_KEY must be set (no default is provided).")
+        return self
 
     class Config:
         env_file = ".env"

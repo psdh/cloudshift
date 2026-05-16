@@ -1,9 +1,11 @@
 import secrets
 import logging
+import time
 from datetime import datetime, timedelta, timezone
 from typing import Optional, Dict
 from urllib.parse import urlencode
 import httpx
+from jose import jwt, JWTError
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -31,15 +33,56 @@ class OAuthService:
         "https://www.googleapis.com/auth/userinfo.email"
     ]
 
+    # OAuth state is valid for a short window between /authorize and /callback.
+    OAUTH_STATE_TTL_SECONDS = 600
+
     @staticmethod
-    def generate_state() -> str:
+    def generate_state(user_id: int) -> str:
         """
-        Generate a random state parameter for CSRF protection.
+        Generate a signed, expiring state parameter for CSRF protection.
+
+        The state is an HMAC-signed token bound to the initiating user so a
+        callback can only be accepted for the user who started the flow and
+        only within a short time window. Stateless (no Redis/DB required).
+
+        Args:
+            user_id: ID of the user initiating the OAuth flow
 
         Returns:
-            str: Random 32-character state string
+            str: Signed state token
         """
-        return secrets.token_urlsafe(32)
+        payload = {
+            "sub": str(user_id),
+            "purpose": "oauth_state",
+            "nonce": secrets.token_urlsafe(16),
+            "exp": int(time.time()) + OAuthService.OAUTH_STATE_TTL_SECONDS,
+        }
+        return jwt.encode(payload, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
+
+    @staticmethod
+    def validate_state(state: str, expected_user_id: int) -> bool:
+        """
+        Validate an OAuth state token (signature, expiry, purpose, user binding).
+
+        Args:
+            state: State token returned by the provider on callback
+            expected_user_id: The authenticated user completing the callback
+
+        Returns:
+            bool: True only if the state is authentic, unexpired, and was
+                issued for this user.
+        """
+        if not state:
+            return False
+        try:
+            payload = jwt.decode(
+                state, settings.JWT_SECRET_KEY, algorithms=[settings.JWT_ALGORITHM]
+            )
+        except JWTError:
+            return False
+        if payload.get("purpose") != "oauth_state":
+            return False
+        return payload.get("sub") == str(expected_user_id)
 
     @staticmethod
     def get_onedrive_auth_url(state: str, redirect_uri: str) -> str:
