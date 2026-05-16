@@ -40,6 +40,10 @@ ENV/
 .env.local
 .env.*.local
 
+# Local-only docker compose overrides (host ports, secrets, etc.)
+docker-compose.override.yml
+docker-compose.override.yaml
+
 # Testing
 .pytest_cache/
 .coverage
