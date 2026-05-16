@@ -28,20 +28,25 @@ RUN apt-get update && apt-get install -y \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy Python dependencies from builder
-COPY --from=builder /root/.local /root/.local
+# Create the non-root user BEFORE copying deps so they land in a home the
+# runtime user can actually read. (The deps were pip-installed with --user
+# into the builder's /root/.local; copying that to /root/.local and then
+# switching to a non-root user made every dependency unreadable -> the
+# container could not start at all.)
+RUN useradd -m -u 1000 cloudshift
+
+# Copy Python dependencies from builder into the runtime user's home
+COPY --from=builder --chown=cloudshift:cloudshift /root/.local /home/cloudshift/.local
 
 # Copy application code
-COPY . .
+COPY --chown=cloudshift:cloudshift . .
 
 # Make sure scripts are executable
 RUN chmod +x /app/scripts/*.sh 2>/dev/null || true
 
-# Add local bin to PATH
-ENV PATH=/root/.local/bin:$PATH
+# Add the user-local bin to PATH
+ENV PATH=/home/cloudshift/.local/bin:$PATH
 
-# Create non-root user for security
-RUN useradd -m -u 1000 cloudshift && chown -R cloudshift:cloudshift /app
 USER cloudshift
 
 # Expose port

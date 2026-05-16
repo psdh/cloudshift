@@ -6,6 +6,9 @@ python-multipart==0.0.6
 # Pydantic for settings
 pydantic==2.5.3
 pydantic-settings==2.1.0
+# Required by pydantic EmailStr (app.schemas.user); absent here = backend
+# crashes on startup in any clean install / Docker image.
+email-validator==2.3.0
 
 # Database
 sqlalchemy[asyncio]==2.0.25
