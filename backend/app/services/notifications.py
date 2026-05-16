@@ -16,6 +16,7 @@ from app.models.user import User
 from app.services.email import email_service
 from app.services.sms import sms_service
 from app.services.audit import AuditService
+from app.models.audit_log import AuditAction
 
 audit_service = AuditService()
 
@@ -190,7 +191,11 @@ async def _send_job_notification_async(job_id: int):
                 await audit_service.log_action(
                     db=db,
                     user_id=user.id,
-                    action=notification_type,
+                    action=(
+                        AuditAction.TRANSFER_COMPLETED
+                        if notification_type == "transfer_completed"
+                        else AuditAction.TRANSFER_FAILED
+                    ),
                     resource_type="transfer_job",
                     resource_id=job.id,
                     details={

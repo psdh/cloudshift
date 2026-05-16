@@ -26,6 +26,11 @@ class AuditAction(str, enum.Enum):
 
     # Conflict resolution
     CONFLICT_RESOLVED = "conflict_resolved"
+    TRANSFER_CONFLICT_DETECTED = "transfer_conflict_detected"
+    TRANSFER_CONFLICT_RESOLVED = "transfer_conflict_resolved"
+
+    # System
+    SYSTEM_ERROR = "system_error"
 
     # Account management
     ACCOUNT_CONNECTED = "account_connected"
