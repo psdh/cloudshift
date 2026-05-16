@@ -1,9 +1,9 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 
-export default function OAuthCallbackPage() {
+function OAuthCallback() {
   const searchParams = useSearchParams();
   const router = useRouter();
 
@@ -30,5 +30,22 @@ export default function OAuthCallbackPage() {
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
       </div>
     </div>
+  );
+}
+
+export default function OAuthCallbackPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center">
+          <div className="text-center">
+            <div className="text-gray-600 mb-4">Processing OAuth callback...</div>
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+          </div>
+        </div>
+      }
+    >
+      <OAuthCallback />
+    </Suspense>
   );
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { authService, UserResponse } from '@/lib/auth';
 
@@ -31,6 +31,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  const logout = useCallback(() => {
+    authService.clearTokens();
+    setUser(null);
+    router.push('/login');
+  }, [router]);
+
   // Auto-refresh token before expiration
   useEffect(() => {
     const refreshInterval = setInterval(
@@ -50,7 +56,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     ); // Refresh every 14 minutes (access token expires in 15)
 
     return () => clearInterval(refreshInterval);
-  }, []);
+  }, [logout]);
 
   const login = async (email: string, password: string) => {
     const response = await authService.login({ email, password });
@@ -63,12 +69,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const user = await authService.register({ email, password, confirm_password: confirmPassword });
     setUser(user);
     router.push('/login?registered=true');
-  };
-
-  const logout = () => {
-    authService.clearTokens();
-    setUser(null);
-    router.push('/login');
   };
 
   return (

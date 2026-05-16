@@ -19,6 +19,9 @@ celery==5.3.6
 # Authentication
 python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4
+# passlib 1.7.4 is incompatible with bcrypt >= 4.1 (reads removed bcrypt.__about__);
+# pin to the last 4.0.x which passlib supports.
+bcrypt==4.0.1
 python-dotenv==1.0.0
 
 # HTTP clients for OAuth and cloud APIs
@@ -38,3 +41,4 @@ twilio==8.12.0
 pytest==7.4.4
 pytest-asyncio==0.23.3
 pytest-cov==4.1.0
+aiosqlite==0.19.0

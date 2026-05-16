@@ -1,12 +1,12 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Layout from '@/components/Layout';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import { accountsService, ConnectedAccount } from '@/lib/accounts';
 
-export default function ConnectedAccountsPage() {
+function ConnectedAccountsContent() {
   const searchParams = useSearchParams();
   const [accounts, setAccounts] = useState<ConnectedAccount[]>([]);
   const [loading, setLoading] = useState(true);
@@ -195,5 +195,13 @@ export default function ConnectedAccountsPage() {
         </div>
       </Layout>
     </ProtectedRoute>
+  );
+}
+
+export default function ConnectedAccountsPage() {
+  return (
+    <Suspense fallback={null}>
+      <ConnectedAccountsContent />
+    </Suspense>
   );
 }

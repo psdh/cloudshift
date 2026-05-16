@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, type ReactElement } from 'react';
 import { useRouter } from 'next/navigation';
 import Layout from '@/components/Layout';
 import ProtectedRoute from '@/components/ProtectedRoute';
@@ -77,7 +77,7 @@ export default function TransferHistoryPage() {
   };
 
   // Get status badge color
-  const getStatusBadge = (status: string): JSX.Element => {
+  const getStatusBadge = (status: string): ReactElement => {
     const colors: Record<string, string> = {
       'draft': 'bg-gray-100 text-gray-800',
       'pending': 'bg-yellow-100 text-yellow-800',
