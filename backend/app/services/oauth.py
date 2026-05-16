@@ -379,6 +379,47 @@ class OAuthService:
         return (token_expiry - now) <= buffer
 
     @staticmethod
+    async def get_valid_token(
+        account: ConnectedAccount,
+        provider: Optional[str] = None
+    ) -> str:
+        """Return a valid (decrypted) access token for ``account``.
+
+        Compatibility wrapper used by the provider services so they don't
+        have to thread a DB session through every call. The common case
+        (token still valid) needs no database access; only the refresh path
+        opens its own short-lived session to persist the rotated token.
+
+        ``provider`` is accepted for backwards compatibility and ignored —
+        the provider is read from ``account``.
+        """
+        # Fast path: token still valid -> just decrypt, no DB needed.
+        if not OAuthService.is_token_expired(account.token_expiry):
+            token = EncryptionService.decrypt(account.access_token)
+            if token:
+                return token
+
+        # Refresh needed -> persist the rotated token in its own transaction.
+        from app.core.database import get_async_session
+
+        async with get_async_session() as db:
+            result = await db.execute(
+                select(ConnectedAccount).where(ConnectedAccount.id == account.id)
+            )
+            db_account = result.scalar_one_or_none()
+            if db_account is None:
+                raise Exception("Connected account not found for token refresh")
+
+            token = await OAuthService.get_valid_access_token(db, db_account)
+
+            # Reflect the rotated, re-encrypted values back onto the caller's
+            # instance so a detached account object stays consistent.
+            account.access_token = db_account.access_token
+            account.refresh_token = db_account.refresh_token
+            account.token_expiry = db_account.token_expiry
+            return token
+
+    @staticmethod
     async def get_valid_access_token(
         db: AsyncSession,
         account: ConnectedAccount

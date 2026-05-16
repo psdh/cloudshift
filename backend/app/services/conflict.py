@@ -71,24 +71,25 @@ class ConflictDetectionService:
         Returns:
             GoogleDriveFile if conflict exists, None otherwise
         """
-        # Check for exact match first
-        existing_file = await GoogleDriveService.check_file_exists(
-            dest_account, file_name, dest_folder_id
-        )
+        # List the destination folder once and look for a name collision.
+        # (Single listing keeps this consistent with check_conflicts_batch
+        # and avoids a separate per-file query.)
+        files = await GoogleDriveService.list_folder(dest_account, dest_folder_id)
 
-        if existing_file:
-            logger.debug(f"Conflict detected: {file_name} already exists")
-            return existing_file
-
-        # If case-insensitive check requested, list all files and compare
         if case_insensitive:
-            files = await GoogleDriveService.list_folder(dest_account, dest_folder_id)
             file_name_lower = file_name.lower()
-
             for file in files:
-                if file.name.lower() == file_name_lower and file.type == "file":
-                    logger.debug(f"Case-insensitive conflict detected: {file_name} matches {file.name}")
+                if file.name.lower() == file_name_lower:
+                    logger.debug(
+                        f"Case-insensitive conflict detected: {file_name} matches {file.name}"
+                    )
                     return file
+            return None
+
+        for file in files:
+            if file.name == file_name:
+                logger.debug(f"Conflict detected: {file_name} already exists")
+                return file
 
         return None
 

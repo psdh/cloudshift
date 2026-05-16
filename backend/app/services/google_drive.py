@@ -56,7 +56,7 @@ class GoogleDriveService:
     @staticmethod
     async def _get_access_token(account: ConnectedAccount) -> str:
         """Get valid access token, refreshing if necessary."""
-        return await OAuthService.get_valid_token(account, "google")
+        return await OAuthService.get_valid_token(account)
 
     @staticmethod
     async def list_root_folder(account: ConnectedAccount) -> List[GoogleDriveFile]:
