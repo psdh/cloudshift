@@ -20,6 +20,8 @@ from app.services.conflict import ConflictDetectionService
 from app.services.s3 import S3Service
 from app.services.transfer_worker import transfer_single_file
 from app.services.progress_tracker import progress_tracker
+from app.services.audit import AuditService
+from app.models.audit_log import AuditAction
 from pydantic import BaseModel, Field, field_validator
 
 
@@ -340,6 +342,74 @@ async def cancel_transfer(
         "message": "Transfer job cancelled successfully",
         "job_id": job_id,
         "status": job.status.value
+    }
+
+
+@router.post("/{job_id}/start")
+async def start_transfer(
+    job_id: int,
+    user_id: int = Depends(get_current_user_id),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Start (or resume) a transfer job now by dispatching it to the worker.
+
+    Args:
+        job_id: Transfer job ID
+        user_id: Current user ID from JWT token
+        db: Database session
+
+    Raises:
+        HTTPException 404: If job not found / not owned by the user
+        HTTPException 400: If the job has no items or is in a non-startable state
+    """
+    result = await db.execute(
+        select(TransferJob)
+        .options(selectinload(TransferJob.items))
+        .where(TransferJob.id == job_id, TransferJob.user_id == user_id)
+    )
+    job = result.scalar_one_or_none()
+    if not job:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Transfer job not found"
+        )
+
+    startable = [
+        JobStatus.DRAFT, JobStatus.PENDING, JobStatus.SCHEDULED,
+        JobStatus.PAUSED, JobStatus.FAILED,
+    ]
+    if job.status not in startable:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Cannot start a job with status '{job.status.value}'"
+        )
+    if not job.items:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot start a job with no items. Run analysis first."
+        )
+
+    job.status = JobStatus.PENDING
+    await db.commit()
+
+    await AuditService.log_action(
+        db=db,
+        action=AuditAction.TRANSFER_STARTED,
+        user_id=user_id,
+        resource_type="transfer",
+        resource_id=str(job_id),
+    )
+
+    # Import here to avoid a circular import at module load.
+    from app.services.transfer_worker import transfer_job_orchestrator
+    transfer_job_orchestrator.delay(job_id)
+
+    return {
+        "success": True,
+        "message": "Transfer started",
+        "job_id": job_id,
+        "status": job.status.value,
     }
 
 

@@ -20,7 +20,7 @@ const MockScheduleForm = ({ onSubmit }: { onSubmit: (data: any) => void }) => {
       return;
     }
 
-    const selectedDateTime = new Date(`${date}T${time}`);
+    const selectedDateTime = new Date(`${date}T${time}:00`);
     const now = new Date();
 
     if (selectedDateTime < now) {
@@ -33,7 +33,7 @@ const MockScheduleForm = ({ onSubmit }: { onSubmit: (data: any) => void }) => {
   };
 
   return (
-    <form onSubmit={handleSubmit}>
+    <form onSubmit={handleSubmit} noValidate>
       <div>
         <label htmlFor="date">Date</label>
         <input

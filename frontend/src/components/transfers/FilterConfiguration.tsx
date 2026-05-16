@@ -147,6 +147,7 @@ export default function FilterConfiguration({
                     >
                       <input
                         type="checkbox"
+                        aria-label={category.label}
                         checked={allSelected}
                         onChange={() => toggleCategory(category.extensions)}
                         className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 mr-2"
@@ -188,8 +189,9 @@ export default function FilterConfiguration({
           </label>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs text-gray-600 mb-1">From</label>
+              <label htmlFor="filter-date-from" className="block text-xs text-gray-600 mb-1">From</label>
               <input
+                id="filter-date-from"
                 type="date"
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
@@ -197,8 +199,9 @@ export default function FilterConfiguration({
               />
             </div>
             <div>
-              <label className="block text-xs text-gray-600 mb-1">To</label>
+              <label htmlFor="filter-date-to" className="block text-xs text-gray-600 mb-1">To</label>
               <input
+                id="filter-date-to"
                 type="date"
                 value={endDate}
                 onChange={(e) => setEndDate(e.target.value)}

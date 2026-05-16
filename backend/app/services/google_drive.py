@@ -155,10 +155,14 @@ class GoogleDriveService:
         file_stream: AsyncIterator[bytes],
         parent_folder_id: str = "root",
         mime_type: str = "application/octet-stream",
-        progress_callback: Optional[Callable[[int], None]] = None
+        total_size: Optional[int] = None,
+        progress_callback: Optional[Callable[[int], None]] = None,
     ) -> GoogleDriveFile:
         """
-        Upload a file to Google Drive using resumable upload for files > 5MB.
+        Upload a file to Google Drive via a resumable session, streaming the
+        source iterator. At most one ~8 MiB (256 KiB-aligned) buffer is held
+        in memory, so files of any size can be uploaded without buffering the
+        whole object.
 
         Args:
             account: Connected Google Drive account
@@ -166,146 +170,119 @@ class GoogleDriveService:
             file_stream: Async iterator yielding file content chunks
             parent_folder_id: Parent folder ID (default: "root")
             mime_type: MIME type of the file
-            progress_callback: Optional callback for progress updates (bytes uploaded)
+            total_size: Total size in bytes (required for the streaming
+                Content-Range; the transfer pipeline always knows this)
+            progress_callback: Optional callback (bytes uploaded so far)
 
         Returns:
             GoogleDriveFile object for the uploaded file
         """
         access_token = await GoogleDriveService._get_access_token(account)
-        headers = {"Authorization": f"Bearer {access_token}"}
+        metadata = {"name": file_name, "parents": [parent_folder_id]}
 
-        # Collect all chunks into memory
-        # For very large files, this should be optimized to use resumable uploads properly
-        chunks = []
-        async for chunk in file_stream:
-            chunks.append(chunk)
-
-        file_data = b''.join(chunks)
-        file_size = len(file_data)
-
-        # Metadata for the file
-        metadata = {
-            "name": file_name,
-            "parents": [parent_folder_id]
-        }
-
-        # For files > 5MB, use resumable upload
-        if file_size > 5 * 1024 * 1024:
-            return await GoogleDriveService._resumable_upload(
-                access_token, metadata, file_data, mime_type, progress_callback
-            )
-
-        # For smaller files, use simple upload
-        endpoint = f"{GoogleDriveService.UPLOAD_URL}/files?uploadType=multipart&fields=id,name,mimeType,size,modifiedTime"
-
-        # Create multipart request
-        boundary = "===============7330845974216740156=="
-        body_parts = [
-            f"--{boundary}",
-            "Content-Type: application/json; charset=UTF-8",
-            "",
-            str(metadata).replace("'", '"'),
-            f"--{boundary}",
-            f"Content-Type: {mime_type}",
-            "",
-        ]
-
-        body_start = "\r\n".join(body_parts).encode() + b"\r\n"
-        body_end = f"\r\n--{boundary}--".encode()
-        body = body_start + file_data + body_end
-
-        headers["Content-Type"] = f"multipart/related; boundary={boundary}"
-
-        # Wait if rate limited
-        await rate_limiter.wait_if_rate_limited("google")
-        await rate_limiter.record_request("google")
-
-        async with aiohttp.ClientSession() as session:
-            async with session.post(endpoint, headers=headers, data=body) as response:
-                if response.status == 429:
-                    import httpx
-                    httpx_response = httpx.Response(
-                        status_code=response.status,
-                        headers=dict(response.headers),
-                        request=httpx.Request("POST", endpoint)
-                    )
-                    await rate_limiter.handle_rate_limit_response("google", httpx_response)
-                    raise Exception("Rate limit hit - retry required")
-
-                if response.status not in (200, 201):
-                    error_text = await response.text()
-                    logger.error(f"Google Drive upload error: {response.status} - {error_text}")
-                    raise Exception(f"Failed to upload file to Google Drive: {response.status}")
-
-                data = await response.json()
-                logger.info(f"Uploaded file {file_name} to Google Drive (size: {file_size} bytes)")
-
-                if progress_callback:
-                    progress_callback(file_size)
-
-                return GoogleDriveFile(data)
-
-    @staticmethod
-    async def _resumable_upload(
-        access_token: str,
-        metadata: Dict[str, Any],
-        file_data: bytes,
-        mime_type: str,
-        progress_callback: Optional[Callable[[int], None]] = None
-    ) -> GoogleDriveFile:
-        """Handle resumable upload for large files."""
-        # Initiate resumable upload session
-        endpoint = f"{GoogleDriveService.UPLOAD_URL}/files?uploadType=resumable&fields=id,name,mimeType,size,modifiedTime"
-        headers = {
+        # Initiate the resumable session.
+        init_endpoint = (
+            f"{GoogleDriveService.UPLOAD_URL}/files"
+            "?uploadType=resumable&fields=id,name,mimeType,size,modifiedTime"
+        )
+        init_headers = {
             "Authorization": f"Bearer {access_token}",
-            "Content-Type": "application/json"
+            "Content-Type": "application/json",
         }
 
+        await rate_limiter.wait_if_rate_limited("google_drive")
+        await rate_limiter.record_request("google_drive")
+
         async with aiohttp.ClientSession() as session:
-            # Start upload session
-            async with session.post(endpoint, headers=headers, json=metadata) as response:
+            async with session.post(
+                init_endpoint, headers=init_headers, json=metadata
+            ) as response:
                 if response.status != 200:
                     error_text = await response.text()
-                    raise Exception(f"Failed to initiate resumable upload: {response.status}")
-
+                    logger.error(
+                        f"Failed to initiate resumable upload: {response.status} - {error_text}"
+                    )
+                    raise Exception(
+                        f"Failed to initiate resumable upload: {response.status}"
+                    )
                 upload_url = response.headers.get("Location")
                 if not upload_url:
                     raise Exception("No upload URL received from Google Drive")
 
-            # Upload file in chunks
-            chunk_size = 256 * 1024  # 256KB chunks
-            total_size = len(file_data)
+            # Google requires every non-final chunk to be a multiple of 256 KiB.
+            block = 256 * 1024
+            flush_at = 32 * block  # 8 MiB
+            buffer = bytearray()
             uploaded = 0
 
-            headers = {
-                "Authorization": f"Bearer {access_token}",
-            }
-
-            while uploaded < total_size:
-                chunk_end = min(uploaded + chunk_size, total_size)
-                chunk = file_data[uploaded:chunk_end]
-
-                headers["Content-Range"] = f"bytes {uploaded}-{chunk_end - 1}/{total_size}"
-                headers["Content-Length"] = str(len(chunk))
-
-                async with session.put(upload_url, headers=headers, data=chunk) as response:
-                    if response.status == 308:
-                        # Resume incomplete, continue
-                        uploaded = chunk_end
+            async def _put(chunk: bytes, is_final: bool):
+                nonlocal uploaded
+                start = uploaded
+                end = uploaded + len(chunk) - 1
+                # Use the known total when available; otherwise '*' until the
+                # final chunk, where the total becomes the final byte count.
+                if total_size is not None:
+                    total = str(total_size)
+                elif is_final:
+                    total = str(uploaded + len(chunk))
+                else:
+                    total = "*"
+                headers = {
+                    "Authorization": f"Bearer {access_token}",
+                    "Content-Length": str(len(chunk)),
+                    "Content-Range": f"bytes {start}-{end}/{total}",
+                }
+                async with session.put(upload_url, headers=headers, data=chunk) as resp:
+                    uploaded = end + 1
+                    if resp.status in (200, 201):
+                        return GoogleDriveFile(await resp.json())
+                    if resp.status == 308:
                         if progress_callback:
                             progress_callback(uploaded)
-                    elif response.status in (200, 201):
-                        # Upload complete
-                        data = await response.json()
-                        logger.info(f"Resumable upload complete (size: {total_size} bytes)")
-                        if progress_callback:
-                            progress_callback(total_size)
-                        return GoogleDriveFile(data)
-                    else:
-                        error_text = await response.text()
-                        raise Exception(f"Resumable upload failed: {response.status} - {error_text}")
+                        return None
+                    error_text = await resp.text()
+                    raise Exception(
+                        f"Resumable upload failed: {resp.status} - {error_text}"
+                    )
 
-        raise Exception("Resumable upload did not complete")
+            result = None
+            async for chunk in file_stream:
+                buffer.extend(chunk)
+                while len(buffer) >= flush_at:
+                    part = bytes(buffer[:flush_at])
+                    del buffer[:flush_at]
+                    result = await _put(part, is_final=False)
+
+            # Final chunk (the remainder; may be empty for a 0-byte file).
+            result = await _put(bytes(buffer), is_final=True)
+            if result is None:
+                raise Exception("Resumable upload did not return file metadata")
+
+            logger.info(
+                f"Uploaded {file_name} to Google Drive ({uploaded} bytes streamed)"
+            )
+            if progress_callback:
+                progress_callback(uploaded)
+            return result
+
+    @staticmethod
+    async def delete_file(account: ConnectedAccount, file_id: str) -> bool:
+        """Delete a file by ID (used to implement conflict 'overwrite')."""
+        access_token = await GoogleDriveService._get_access_token(account)
+        endpoint = f"{GoogleDriveService.BASE_URL}/files/{file_id}"
+        headers = {"Authorization": f"Bearer {access_token}"}
+
+        async with aiohttp.ClientSession() as session:
+            async with session.delete(endpoint, headers=headers) as response:
+                if response.status not in (200, 204):
+                    error_text = await response.text()
+                    logger.error(
+                        f"Failed to delete Google Drive file {file_id}: "
+                        f"{response.status} - {error_text}"
+                    )
+                    return False
+        logger.info(f"Deleted Google Drive file {file_id}")
+        return True
 
     @staticmethod
     async def create_folder(

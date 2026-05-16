@@ -1,488 +1,375 @@
 """
-Transfer worker tasks for executing file transfers.
-Handles single file transfers through the OneDrive → S3 → Google Drive pipeline.
+Transfer worker tasks: OneDrive -> S3 -> Google Drive.
+
+The pipeline streams: the file is piped chunk-by-chunk from OneDrive into an
+S3 multipart upload (computing the MD5 as it goes), then streamed back out of
+S3 into a Google Drive resumable upload. At most a few MiB are held in memory
+at any time, so files up to the product's 100 GB requirement transfer without
+being buffered whole.
 """
 
-import logging
+import asyncio
 import hashlib
-import io
+import logging
 from datetime import datetime
-from typing import Optional, AsyncIterator
+from typing import AsyncIterator
+
+from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 
 from app.core.celery_app import celery_app
 from app.core.database import get_db
-from app.core.retry import async_retry_on_transient_error
-from app.models.transfer import TransferItem, TransferJob, JobStatus, ConflictRecord, ConflictResolution
-from app.models.connected_account import ConnectedAccount
-from app.services.onedrive import OneDriveService
-from app.services.google_drive import GoogleDriveService
-from app.services.s3 import S3Service
-from app.services.progress_tracker import progress_tracker
-from app.services.conflict import ConflictDetectionService
-from app.services.audit import AuditService
 from app.models.audit_log import AuditAction
-from sqlalchemy import select
-
-# Import send_job_notification for triggering notifications
-# Import at module level to avoid circular imports
-def trigger_notification(job_id: int):
-    """Trigger notification task without circular import."""
-    from app.services.notifications import send_job_notification
-    send_job_notification.delay(job_id)
+from app.models.connected_account import ConnectedAccount
+from app.models.transfer import (
+    ConflictRecord,
+    ConflictResolution,
+    ItemStatus,
+    JobStatus,
+    TransferItem,
+    TransferJob,
+)
+from app.services.audit import AuditService
+from app.services.conflict import ConflictDetectionService
+from app.services.google_drive import GoogleDriveService
+from app.services.onedrive import OneDriveService
+from app.services.progress_tracker import progress_tracker
+from app.services.s3 import S3Service
 
 logger = logging.getLogger(__name__)
 
 
+def trigger_notification(job_id: int):
+    """Enqueue the completion/failure notification (best-effort)."""
+    try:
+        from app.services.notifications import send_job_notification
+
+        send_job_notification.delay(job_id)
+    except Exception as e:  # broker down must not fail the transfer
+        logger.warning(f"Could not enqueue notification for job {job_id}: {e}")
+
+
 class TransferError(Exception):
-    """Custom exception for transfer errors."""
-    pass
+    """Raised for unrecoverable transfer errors."""
 
 
-async def calculate_checksum_from_stream(stream: AsyncIterator[bytes], algorithm: str = "md5") -> tuple[bytes, str]:
-    """
-    Calculate checksum from async stream while collecting data.
+class _Counter:
+    """Mutable byte counter shared with the hashing pass-through generator."""
 
-    Args:
-        stream: Async iterator yielding file chunks
-        algorithm: Hash algorithm to use (md5 or sha256)
+    __slots__ = ("total",)
 
-    Returns:
-        Tuple of (file_data, checksum_hex)
-    """
-    if algorithm == "md5":
-        hasher = hashlib.md5()
-    elif algorithm == "sha256":
-        hasher = hashlib.sha256()
-    else:
-        raise ValueError(f"Unsupported hash algorithm: {algorithm}")
+    def __init__(self):
+        self.total = 0
 
-    chunks = []
+
+async def _hashing_passthrough(
+    stream: AsyncIterator[bytes], hasher, counter: "_Counter"
+) -> AsyncIterator[bytes]:
+    """Yield the source stream unchanged while updating `hasher`/`counter`."""
     async for chunk in stream:
         hasher.update(chunk)
-        chunks.append(chunk)
-
-    file_data = b''.join(chunks)
-    checksum = hasher.hexdigest()
-
-    logger.debug(f"Calculated {algorithm} checksum: {checksum} (size: {len(file_data)} bytes)")
-    return file_data, checksum
-
-
-async def bytes_to_async_iterator(data: bytes, chunk_size: int = 8192) -> AsyncIterator[bytes]:
-    """Convert bytes to async iterator."""
-    offset = 0
-    while offset < len(data):
-        chunk = data[offset:offset + chunk_size]
-        if chunk:
-            yield chunk
-        offset += chunk_size
+        counter.total += len(chunk)
+        yield chunk
 
 
 @celery_app.task(name="app.services.transfer_worker.transfer_single_file", bind=True)
 def transfer_single_file(self, item_id: int) -> dict:
-    """
-    Transfer a single file through the pipeline: OneDrive → S3 → Google Drive.
-    Includes checksum verification at each step.
-
-    Args:
-        item_id: TransferItem ID
-
-    Returns:
-        dict: Transfer result with status and details
-    """
-    import asyncio
+    """Transfer a single file: OneDrive -> S3 -> Google Drive (streamed)."""
 
     async def _transfer():
-        # Get database session
         async for db in get_db():
+            item = None
+            s3_service = S3Service()
+            s3_key = None
             try:
-                # Fetch transfer item with job
-                result = await db.execute(
-                    select(TransferItem).where(TransferItem.id == item_id)
-                )
-                item = result.scalar_one_or_none()
-
+                item = (
+                    await db.execute(
+                        select(TransferItem).where(TransferItem.id == item_id)
+                    )
+                ).scalar_one_or_none()
                 if not item:
                     raise TransferError(f"Transfer item {item_id} not found")
 
-                # Fetch the job
-                job_result = await db.execute(
-                    select(TransferJob).where(TransferJob.id == item.job_id)
-                )
-                job = job_result.scalar_one_or_none()
-
+                job = (
+                    await db.execute(
+                        select(TransferJob).where(TransferJob.id == item.job_id)
+                    )
+                ).scalar_one_or_none()
                 if not job:
                     raise TransferError(f"Transfer job {item.job_id} not found")
 
-                # Update item status to running
-                item.status = JobStatus.RUNNING
+                item.status = ItemStatus.IN_PROGRESS
                 item.started_at = datetime.utcnow()
                 await db.commit()
-
-                logger.info(f"Starting transfer for item {item_id}: {item.source_path}")
-
-                # Update progress - file start
-                await progress_tracker.update_file_start(job.id, item.source_path, item.size)
-
-                # Get connected accounts
-                source_account_result = await db.execute(
-                    select(ConnectedAccount).where(
-                        ConnectedAccount.user_id == job.user_id,
-                        ConnectedAccount.provider == job.source_provider
-                    )
+                await progress_tracker.update_file_start(
+                    job.id, item.source_path, item.size
                 )
-                source_account = source_account_result.scalar_one_or_none()
 
-                dest_account_result = await db.execute(
-                    select(ConnectedAccount).where(
-                        ConnectedAccount.user_id == job.user_id,
-                        ConnectedAccount.provider == job.dest_provider
+                source_account = (
+                    await db.execute(
+                        select(ConnectedAccount).where(
+                            ConnectedAccount.user_id == job.user_id,
+                            ConnectedAccount.provider == job.source_provider,
+                        )
                     )
-                )
-                dest_account = dest_account_result.scalar_one_or_none()
-
+                ).scalar_one_or_none()
+                dest_account = (
+                    await db.execute(
+                        select(ConnectedAccount).where(
+                            ConnectedAccount.user_id == job.user_id,
+                            ConnectedAccount.provider == job.dest_provider,
+                        )
+                    )
+                ).scalar_one_or_none()
                 if not source_account or not dest_account:
                     raise TransferError("Source or destination account not found")
 
-                # Step 1: Download from OneDrive with checksum calculation
-                logger.info(f"Downloading from OneDrive: {item.source_path}")
-                download_stream = OneDriveService.download_file(source_account, item.source_file_id)
-                file_data, source_checksum = await calculate_checksum_from_stream(download_stream, "md5")
-
-                # Verify file size
-                if len(file_data) != item.size:
-                    raise TransferError(
-                        f"Size mismatch: expected {item.size}, got {len(file_data)}"
-                    )
-
-                logger.info(f"Downloaded {len(file_data)} bytes, checksum: {source_checksum}")
-
-                # Step 2: Upload to S3 with job_id prefix
-                s3_key = f"transfers/{job.id}/{item.id}/{item.source_path}"
-                logger.info(f"Uploading to S3: {s3_key}")
-
-                s3_service = S3Service()
-                upload_stream = bytes_to_async_iterator(file_data)
-                await s3_service.upload_file(s3_key, upload_stream, len(file_data))
-
-                # Download from S3 to verify
-                s3_data = await s3_service.download_file(s3_key)
-                s3_checksum = hashlib.md5(s3_data).hexdigest()
-
-                if s3_checksum != source_checksum:
-                    raise TransferError(
-                        f"S3 checksum mismatch: source={source_checksum}, s3={s3_checksum}"
-                    )
-
-                logger.info(f"S3 upload verified, checksum: {s3_checksum}")
-
-                # Step 3: Check for conflicts at destination
                 dest_folder_id = job.dest_folder_id or "root"
                 config = job.config or {}
-                conflict_strategy = config.get("conflict_strategy", "ask")
+                strategy = config.get("conflict_strategy", "ask")
 
-                existing_file = await ConflictDetectionService.check_conflict(
-                    dest_account, item.dest_path, dest_folder_id, case_insensitive=False
+                # --- Conflict handling (BEFORE moving any data) ---
+                existing = await ConflictDetectionService.check_conflict(
+                    dest_account, item.dest_path, dest_folder_id
                 )
-
-                if existing_file:
-                    logger.info(f"Conflict detected for {item.dest_path}, strategy: {conflict_strategy}")
-
-                    # Create conflict record
-                    conflict_record = ConflictRecord(
-                        job_id=job.id,
-                        item_id=item.id,
-                        resolution=None
+                if existing:
+                    conflict = ConflictRecord(
+                        job_id=job.id, item_id=item.id, resolution=None
                     )
-                    db.add(conflict_record)
+                    db.add(conflict)
                     await db.commit()
-
-                    # Log conflict detection
                     await AuditService.log_action(
                         db=db,
                         action=AuditAction.TRANSFER_CONFLICT_DETECTED,
                         user_id=job.user_id,
                         resource_type="transfer_item",
                         resource_id=str(item.id),
-                        details={
-                            "job_id": job.id,
-                            "file_name": item.dest_path,
-                            "conflict_strategy": conflict_strategy,
-                            "existing_file_id": existing_file.id
-                        }
+                        details={"job_id": job.id, "file_name": item.dest_path},
                     )
 
-                    # Handle conflict based on strategy
-                    if conflict_strategy == "ask":
-                        # Pause the item and job, wait for user resolution
-                        item.status = JobStatus.PAUSED
+                    if strategy == "ask":
+                        # Hold the item and pause the job for user resolution.
                         job.status = JobStatus.PAUSED
                         await db.commit()
-
-                        logger.info(f"Item {item_id} paused due to conflict, awaiting user resolution")
                         return {
                             "status": "paused",
                             "item_id": item_id,
-                            "reason": "conflict_requires_resolution",
-                            "conflict_id": conflict_record.id
+                            "conflict_id": conflict.id,
                         }
 
-                    elif conflict_strategy == "skip_all":
-                        # Skip this file
-                        item.status = JobStatus.COMPLETED
+                    if strategy == "skip_all":
+                        item.status = ItemStatus.SKIPPED
                         item.completed_at = datetime.utcnow()
-                        conflict_record.resolution = ConflictResolution.SKIP
-                        conflict_record.resolved_at = datetime.utcnow()
+                        conflict.resolution = ConflictResolution.SKIP
+                        conflict.resolved_at = datetime.utcnow()
                         await db.commit()
-
-                        # Log resolution
                         await AuditService.log_action(
                             db=db,
                             action=AuditAction.TRANSFER_CONFLICT_RESOLVED,
                             user_id=job.user_id,
                             resource_type="transfer_item",
                             resource_id=str(item.id),
-                            details={"resolution": "skip", "file_name": item.dest_path}
+                            details={"resolution": "skip", "file_name": item.dest_path},
                         )
+                        await progress_tracker.update_file_complete(
+                            job.id, success=True, bytes_transferred=0
+                        )
+                        return {"status": "skipped", "item_id": item_id}
 
-                        # Clean up S3 file
-                        await s3_service.delete_file(s3_key)
-
-                        logger.info(f"Skipped file {item.dest_path} due to conflict")
-                        return {
-                            "status": "skipped",
-                            "item_id": item_id,
-                            "reason": "conflict_skip"
-                        }
-
-                    elif conflict_strategy == "rename_all":
-                        # Generate new name
-                        existing_files = await GoogleDriveService.list_folder(dest_account, dest_folder_id)
-                        existing_names = [f.name for f in existing_files if f.type == "file"]
-                        new_name = ConflictDetectionService.generate_rename(item.dest_path, existing_names)
+                    if strategy == "rename_all":
+                        existing_files = await GoogleDriveService.list_folder(
+                            dest_account, dest_folder_id
+                        )
+                        new_name = ConflictDetectionService.generate_rename(
+                            item.dest_path,
+                            [f.name for f in existing_files if f.type == "file"],
+                        )
                         item.dest_path = new_name
-                        conflict_record.resolution = ConflictResolution.RENAME
-                        conflict_record.resolved_at = datetime.utcnow()
+                        conflict.resolution = ConflictResolution.RENAME
+                        conflict.resolved_at = datetime.utcnow()
                         await db.commit()
-
-                        # Log resolution
                         await AuditService.log_action(
                             db=db,
                             action=AuditAction.TRANSFER_CONFLICT_RESOLVED,
                             user_id=job.user_id,
                             resource_type="transfer_item",
                             resource_id=str(item.id),
-                            details={
-                                "resolution": "rename",
-                                "original_name": item.source_path,
-                                "new_name": new_name
-                            }
+                            details={"resolution": "rename", "new_name": new_name},
                         )
 
-                        logger.info(f"Renamed file from {item.source_path} to {new_name}")
-
-                    elif conflict_strategy == "overwrite_all":
-                        # Will overwrite - no special handling needed, just log
-                        conflict_record.resolution = ConflictResolution.OVERWRITE
-                        conflict_record.resolved_at = datetime.utcnow()
+                    elif strategy == "overwrite_all":
+                        # Real overwrite: remove the existing Drive file so the
+                        # new upload replaces it (Drive allows same-name files).
+                        await GoogleDriveService.delete_file(dest_account, existing.id)
+                        conflict.resolution = ConflictResolution.OVERWRITE
+                        conflict.resolved_at = datetime.utcnow()
                         await db.commit()
-
-                        # Log resolution
                         await AuditService.log_action(
                             db=db,
                             action=AuditAction.TRANSFER_CONFLICT_RESOLVED,
                             user_id=job.user_id,
                             resource_type="transfer_item",
                             resource_id=str(item.id),
-                            details={"resolution": "overwrite", "file_name": item.dest_path}
+                            details={"resolution": "overwrite", "file_name": item.dest_path},
                         )
 
-                        logger.info(f"Will overwrite existing file {item.dest_path}")
-
-                # Step 4: Upload to Google Drive
-                logger.info(f"Uploading to Google Drive: {item.dest_path}")
-
-                # Convert bytes to async iterator for Google Drive upload
-                gd_upload_stream = bytes_to_async_iterator(file_data)
-                uploaded_file = await GoogleDriveService.upload_file(
-                    dest_account,
-                    item.dest_path,
-                    gd_upload_stream,
-                    dest_folder_id,
-                    mime_type="application/octet-stream"
+                # --- Stream OneDrive -> S3 (multipart, incremental MD5) ---
+                s3_key = f"transfers/{job.id}/{item.id}/{item.source_path}"
+                hasher = hashlib.md5()
+                counter = _Counter()
+                src_stream = OneDriveService.download_file(
+                    source_account, item.source_file_id
                 )
-
-                # Verify Google Drive upload size
-                if uploaded_file.size != item.size:
+                ok = await s3_service.upload_stream(
+                    s3_key, _hashing_passthrough(src_stream, hasher, counter)
+                )
+                if not ok:
+                    raise TransferError("Failed to stage file in S3")
+                source_checksum = hasher.hexdigest()
+                bytes_seen = counter.total
+                if item.size and bytes_seen != item.size:
                     raise TransferError(
-                        f"Google Drive size mismatch: expected {item.size}, got {uploaded_file.size}"
+                        f"Size mismatch from source: expected {item.size}, got {bytes_seen}"
                     )
 
-                logger.info(f"Uploaded to Google Drive, file ID: {uploaded_file.id}")
+                # --- Stream S3 -> Google Drive ---
+                uploaded = await GoogleDriveService.upload_file(
+                    dest_account,
+                    item.dest_path,
+                    s3_service.download_stream(s3_key),
+                    dest_folder_id,
+                    total_size=item.size or bytes_seen,
+                )
+                expected = item.size or bytes_seen
+                if uploaded.size and expected and uploaded.size != expected:
+                    raise TransferError(
+                        f"Destination size mismatch: expected {expected}, "
+                        f"got {uploaded.size}"
+                    )
 
-                # Step 5: Delete S3 file after successful upload
-                logger.info(f"Deleting S3 file: {s3_key}")
+                # Exactly-once: delete the intermediate copy now that the
+                # destination upload is confirmed.
                 await s3_service.delete_file(s3_key)
+                s3_key = None
 
-                # Update item status to completed
-                item.status = JobStatus.COMPLETED
+                item.status = ItemStatus.COMPLETED
                 item.completed_at = datetime.utcnow()
                 item.error_message = None
                 await db.commit()
-
-                # Update progress - file complete
-                await progress_tracker.update_file_complete(job.id, success=True, bytes_transferred=item.size)
-
-                logger.info(f"Transfer completed successfully for item {item_id}")
-
+                await progress_tracker.update_file_complete(
+                    job.id, success=True, bytes_transferred=bytes_seen
+                )
                 return {
                     "status": "success",
                     "item_id": item_id,
-                    "source_path": item.source_path,
-                    "dest_path": item.dest_path,
-                    "size": item.size,
                     "checksum": source_checksum,
-                    "dest_file_id": uploaded_file.id
+                    "dest_file_id": uploaded.id,
                 }
 
             except Exception as e:
-                logger.error(f"Transfer failed for item {item_id}: {str(e)}", exc_info=True)
-
-                # Update item with error
-                if item:
-                    item.status = JobStatus.FAILED
+                logger.error(
+                    f"Transfer failed for item {item_id}: {e}", exc_info=True
+                )
+                if item is not None:
+                    item.status = ItemStatus.FAILED
                     item.error_message = str(e)
                     item.completed_at = datetime.utcnow()
-                    await db.commit()
-
-                    # Update progress - file failed
-                    await progress_tracker.update_file_complete(job.id, success=False, bytes_transferred=0)
-
-                # Retry logic - Celery will handle this based on configuration
-                raise TransferError(f"Transfer failed: {str(e)}")
-
+                    try:
+                        await db.commit()
+                        await progress_tracker.update_file_complete(
+                            item.job_id, success=False, bytes_transferred=0
+                        )
+                    except Exception:
+                        pass
+                if s3_key:  # best-effort cleanup of the partial staged copy
+                    try:
+                        await s3_service.delete_file(s3_key)
+                    except Exception:
+                        pass
+                raise TransferError(f"Transfer failed: {e}")
             finally:
                 await db.close()
                 break
 
-    # Run the async transfer function
     return asyncio.run(_transfer())
 
 
 @celery_app.task(name="app.services.transfer_worker.transfer_job_orchestrator", bind=True)
 def transfer_job_orchestrator(self, job_id: int) -> dict:
-    """
-    Orchestrate the transfer of all files in a job.
-    Creates folder structure, queues individual file transfers, tracks progress.
-
-    Args:
-        job_id: TransferJob ID
-
-    Returns:
-        dict: Job execution result
-    """
-    import asyncio
-    from celery import group
+    """Queue every outstanding item of a job (resumable, no truncation)."""
 
     async def _orchestrate():
         async for db in get_db():
             try:
-                # Fetch the job with items
-                from sqlalchemy.orm import selectinload
-
-                result = await db.execute(
-                    select(TransferJob)
-                    .options(selectinload(TransferJob.items))
-                    .where(TransferJob.id == job_id)
-                )
-                job = result.scalar_one_or_none()
-
+                job = (
+                    await db.execute(
+                        select(TransferJob)
+                        .options(selectinload(TransferJob.items))
+                        .where(TransferJob.id == job_id)
+                    )
+                ).scalar_one_or_none()
                 if not job:
                     raise TransferError(f"Transfer job {job_id} not found")
 
-                logger.info(f"Starting transfer job {job_id} with {len(job.items)} items")
+                if job.status == JobStatus.PAUSED:
+                    return {"status": "paused", "job_id": job_id}
 
-                # Calculate totals
                 total_files = len(job.items)
-                total_size = sum(item.size for item in job.items)
-
-                # Initialize progress tracking
-                await progress_tracker.initialize_progress(job.id, total_files, total_size)
-
-                # Update job status
-                job.status = JobStatus.RUNNING
-                job.started_at = datetime.utcnow()
-                await db.commit()
-
-                # Get destination account for folder creation
-                dest_account_result = await db.execute(
-                    select(ConnectedAccount).where(
-                        ConnectedAccount.user_id == job.user_id,
-                        ConnectedAccount.provider == job.dest_provider
-                    )
+                total_size = sum(i.size or 0 for i in job.items)
+                await progress_tracker.initialize_progress(
+                    job.id, total_files, total_size
                 )
-                dest_account = dest_account_result.scalar_one_or_none()
 
-                if not dest_account:
-                    raise TransferError("Destination account not found")
+                # Resumable: (re)queue anything not yet finished — PENDING plus
+                # IN_PROGRESS items left behind by an interrupted worker.
+                outstanding = [
+                    i
+                    for i in job.items
+                    if i.status in (ItemStatus.PENDING, ItemStatus.IN_PROGRESS)
+                ]
 
-                # Step 1: Create folder structure in destination (if needed)
-                # For now, we assume files go to root or specified folder
-                # Future enhancement: parse folder paths from items
-
-                # Step 2: Queue individual file transfers
-                # Using Celery groups for controlled concurrency
-                pending_items = [item for item in job.items if item.status == JobStatus.PENDING]
-
-                if not pending_items:
-                    logger.warning(f"No pending items to transfer for job {job_id}")
+                if not outstanding:
                     job.status = JobStatus.COMPLETED
                     job.completed_at = datetime.utcnow()
                     await db.commit()
-
-                    # Trigger notification asynchronously
                     trigger_notification(job_id)
+                    return {"status": "completed", "job_id": job_id}
 
-                    return {
-                        "status": "completed",
-                        "job_id": job_id,
-                        "message": "No items to transfer"
-                    }
+                job.status = JobStatus.RUNNING
+                if job.started_at is None:
+                    job.started_at = datetime.utcnow()
+                await db.commit()
 
-                logger.info(f"Queueing {len(pending_items)} file transfers")
+                # Enqueue ALL outstanding items. Parallelism is bounded by the
+                # Celery worker concurrency, not by truncating the work.
+                for item in outstanding:
+                    transfer_single_file.delay(item.id)
 
-                # Create task group with concurrency limit
-                # Note: Celery will handle the actual concurrency based on worker configuration
-                task_ids = []
-                for item in pending_items[:5]:  # Process first 5 items (configurable)
-                    task = transfer_single_file.delay(item.id)
-                    task_ids.append(task.id)
-
-                logger.info(f"Queued {len(task_ids)} transfer tasks for job {job_id}")
-
-                # Note: In production, we'd use Celery's chord or chain for better orchestration
-                # For now, tasks run independently and update their status
-
+                logger.info(
+                    f"Queued {len(outstanding)} item(s) for job {job_id} "
+                    f"({total_files} total)"
+                )
                 return {
                     "status": "running",
                     "job_id": job_id,
-                    "queued_tasks": len(task_ids),
-                    "task_ids": task_ids
+                    "queued": len(outstanding),
                 }
 
             except Exception as e:
-                logger.error(f"Job orchestration failed for job {job_id}: {str(e)}", exc_info=True)
-
+                logger.error(
+                    f"Orchestration failed for job {job_id}: {e}", exc_info=True
+                )
+                job = (
+                    await db.execute(
+                        select(TransferJob).where(TransferJob.id == job_id)
+                    )
+                ).scalar_one_or_none()
                 if job:
                     job.status = JobStatus.FAILED
                     job.completed_at = datetime.utcnow()
                     await db.commit()
-
-                    # Trigger notification asynchronously
                     trigger_notification(job_id)
-
-                raise TransferError(f"Job orchestration failed: {str(e)}")
-
+                raise TransferError(f"Job orchestration failed: {e}")
             finally:
                 await db.close()
                 break
